@@ -15,6 +15,11 @@ parent:
   id: nodejs
   registryUrl: "https://registry.devfile.io"
 components:
+  - name: tools
+    container:
+      image: registry.redhat.io/devspaces/udi-rhel9:latest
+      memoryLimit: 3Gi
+      mountSources: true
   - name: image-build
     image:
       imageName: nodejs-image:latest
@@ -49,4 +54,5 @@ commands:
       group:
         kind: deploy
         isDefault: true
+
 
