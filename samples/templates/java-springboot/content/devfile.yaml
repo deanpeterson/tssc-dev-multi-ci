@@ -22,6 +22,11 @@ parent:
   registryUrl: 'https://registry.devfile.io'
   version: 1.2.0
 components:
+  - name: tools
+    container:
+      image: registry.redhat.io/devspaces/udi-rhel9:latest
+      memoryLimit: 3Gi
+      mountSources: true
   - name: image-build
     image:
       imageName: java-springboot-image:latest
@@ -57,3 +62,4 @@ commands:
       group:
         kind: deploy
         isDefault: true
+
