@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: deanpeterson
+  annotations:
+    github.com/user-login: deanpeterson
+spec:
+  profile:
+    displayName: Dean Peterson
+  memberOf: []
