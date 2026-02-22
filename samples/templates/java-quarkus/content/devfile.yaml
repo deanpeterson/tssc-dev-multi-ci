@@ -50,6 +50,24 @@ components:
       path: /
       secure: true
 commands:
+- id: init-git-config
+  exec:
+    commandLine: |
+      GIT_USER_EMAIL=""
+      GIT_USER_NAME=""
+      if [ -d /config/user/profile ]; then
+        GIT_USER_NAME=$(cat /config/user/profile/name 2>/dev/null || true)
+        GIT_USER_EMAIL=$(cat /config/user/profile/email 2>/dev/null || true)
+      fi
+      if [ -n "$GIT_USER_NAME" ]; then
+        git config --global user.name "$GIT_USER_NAME"
+      fi
+      case "$GIT_USER_EMAIL" in
+        *@che) ;;
+        "")    ;;
+        *)     git config --global user.email "$GIT_USER_EMAIL" ;;
+      esac
+    component: tools
 - id: build-image
   apply:
     component: image-build
@@ -65,3 +83,6 @@ commands:
       kind: deploy
       isDefault: true
 
+events:
+  postStart:
+    - init-git-config
