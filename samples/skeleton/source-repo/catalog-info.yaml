@@ -8,6 +8,10 @@ metadata:
       title: Trusted Secure Supply Chain 
       icon: dashboard
       type: admin-dashboard
+    - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.gitRepoOwner }}/${{ values.gitRepoName }}"
+      title: "Open in Dev Spaces"
+      icon: catalog
+      type: devspaces
   annotations:
     # ArgoCD apps from this template used tssc-gitops as the grouping
     argocd/app-selector: tssc/gitops=${{  values.name  }}
@@ -41,4 +45,3 @@ spec:
   type: service
   owner: ${{ values.owner }} 
   lifecycle: experimental
- 
