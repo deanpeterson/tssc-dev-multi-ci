@@ -57,6 +57,10 @@ spec:
       description: Path to a file with build arguments for buildah, see https://www.mankier.com/1/buildah-build#--build-arg-file
       name: build-args-file
       type: string
+    - default: "true"
+      description: Verify the TLS on the registry endpoint (for push/pull to a non-TLS registry)
+      name: tlsverify
+      type: string
   results:
     - name: IMAGE_DIGEST
       description: Digest of the image just built
@@ -115,6 +119,8 @@ spec:
             - $(params.build-args[*])
         - name: BUILD_ARGS_FILE
           value: $(params.build-args-file)
+        - name: TLSVERIFY
+          value: $(params.tlsverify)
       runAfter:
         - clone-repository
       taskRef:
