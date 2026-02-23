@@ -503,6 +503,50 @@ spec:
         sourcePath: source
 
     #
+    # Create Konflux Application and Component CRs
+    #
+
+    - id: create-konflux-application
+      name: Create Konflux Application
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/kubernetes-api/apis/appstudio.redhat.com/v1alpha1/namespaces/default-tenant/applications
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: appstudio.redhat.com/v1alpha1
+          kind: Application
+          metadata:
+            name: ${{ parameters.name }}
+            namespace: default-tenant
+          spec:
+            displayName: ${{ parameters.name }}
+
+    - id: create-konflux-component
+      name: Create Konflux Component
+      action: http:backstage:request
+      input:
+        method: POST
+        path: /api/proxy/kubernetes-api/apis/appstudio.redhat.com/v1alpha1/namespaces/default-tenant/components
+        headers:
+          Content-Type: application/json
+        body:
+          apiVersion: appstudio.redhat.com/v1alpha1
+          kind: Component
+          metadata:
+            name: ${{ parameters.name }}
+            namespace: default-tenant
+          spec:
+            application: ${{ parameters.name }}
+            componentName: ${{ parameters.name }}
+            containerImage: "${{ parameters.imageRegistry }}/${{ parameters.imageOrg }}/${{ parameters.imageName }}"
+            source:
+              git:
+                revision: ${{ parameters.branch }}
+                url: "https://${{ parameters.ghHost if parameters.hostType === 'GitHub' else (parameters.glHost if parameters.hostType === 'GitLab' else parameters.bbHost) }}/${{ parameters.ghOwner if parameters.hostType === 'GitHub' else (parameters.glOwner if parameters.hostType === 'GitLab' else parameters.bbOwner) }}/${{ parameters.repoName }}"
+
+    #
     # Register objects in Backstage
     #
 
