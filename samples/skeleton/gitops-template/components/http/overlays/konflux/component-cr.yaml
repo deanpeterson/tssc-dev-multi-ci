@@ -1,0 +1,16 @@
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  annotations:
+    build.appstudio.openshift.io/request: configure-pac
+spec:
+  application: ${{ values.name }}
+  componentName: ${{ values.name }}
+  containerImage: "${{ values.srcImage }}"
+  source:
+    git:
+      revision: ${{ values.defaultBranch }}
+      url: ${{ values.srcRepoURL }}
+      dockerfileUrl: ${{ values.dockerfileUrl }}
+      context: ./

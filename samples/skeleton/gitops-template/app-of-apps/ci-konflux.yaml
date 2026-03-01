@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.name }}-konflux
+  namespace: ${{ values.argoNS }}
+  finalizers: ["resources-finalizer.argocd.argoproj.io"]
+spec:
+  project: ${{ values.argoProject }}
+  source:
+    path: ${{ values.argoComponentOverlays }}/konflux
+    repoURL: ${{ values.repoURL }}.git
+    targetRevision: ${{ values.defaultBranch }}
+  destination:
+    namespace: default-tenant
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+    - group: appstudio.redhat.com
+      kind: Component
+      jsonPointers:
+        - /metadata/annotations
+        - /status
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - PruneLast=true
