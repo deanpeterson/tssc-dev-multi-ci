@@ -7,7 +7,7 @@ commonLabels:
   backstage.io/kubernetes-namespace: ${{ values.namespace }} 
   app.kubernetes.io/part-of: ${{ values.name }}
 resources:
-{%- if values.isTekton %}
+{%- if values.isTekton and not values.isKonflux %}
   - ci-tekton.yaml
 {%- endif %}
   - application-dev.yaml

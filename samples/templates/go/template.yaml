@@ -16,6 +16,17 @@ spec:
         - name
         - owner
       properties:
+        mode:
+          title: Pipeline Mode
+          type: string
+          description: "TSSC uses template pipeline definitions. Konflux uses build-service managed pipelines with supply chain security."
+          default: tssc
+          enum:
+            - tssc
+            - konflux
+          enumNames:
+            - TSSC (Tekton pipeline from template)
+            - Konflux (managed supply chain)
         name:
           title: Name
           type: string
@@ -288,10 +299,12 @@ spec:
           webhookSecret: pipelines-secret
           webhookSecretKey: webhook.secret
           defaultBranch: ${{ parameters.branch }}
+          isKonflux: ${{ parameters.mode === 'konflux' }}
 
     # Fetch CI which will be in a folder ci/gitops/type
     - id: fetch-gitops-ci-skeleton
       name: Fetch Gitops CI
+      if: ${{ parameters.mode !== 'konflux' }}
       action: fetch:template
       input:
         url: ../../skeleton/ci/gitops-template/${{ parameters.ciType }}
@@ -394,7 +407,7 @@ spec:
     - id: wait-for-sync
       name: Waiting for ArgoCD Sync
       action: 'debug:wait'
-      if: ${{ parameters.ciType === 'tekton' }}
+      if: ${{ parameters.ciType === 'tekton' and parameters.mode !== 'konflux' }}
       input:
         seconds: 15
 
@@ -444,6 +457,7 @@ spec:
           isJenkins: ${{ parameters.ciType === 'jenkins' }}
     - id: fetch-source-ci-skeleton
       name: Fetch Source CI
+      if: ${{ parameters.mode !== 'konflux' }}
       action: fetch:template
       input:
         targetPath: source
@@ -508,6 +522,7 @@ spec:
 
     - id: create-konflux-application
       name: Create Konflux Application
+      if: ${{ parameters.mode === 'konflux' }}
       action: http:backstage:request
       input:
         method: POST
@@ -525,6 +540,7 @@ spec:
 
     - id: create-konflux-component
       name: Create Konflux Component
+      if: ${{ parameters.mode === 'konflux' }}
       action: http:backstage:request
       input:
         method: POST
@@ -537,6 +553,8 @@ spec:
           metadata:
             name: ${{ parameters.name }}
             namespace: default-tenant
+            annotations:
+              build.appstudio.openshift.io/request: configure-pac
           spec:
             application: ${{ parameters.name }}
             componentName: ${{ parameters.name }}
@@ -545,6 +563,8 @@ spec:
               git:
                 revision: ${{ parameters.branch }}
                 url: "https://${{ parameters.ghHost if parameters.hostType === 'GitHub' else (parameters.glHost if parameters.hostType === 'GitLab' else parameters.bbHost) }}/${{ parameters.ghOwner if parameters.hostType === 'GitHub' else (parameters.glOwner if parameters.hostType === 'GitLab' else parameters.bbOwner) }}/${{ parameters.repoName }}"
+                dockerfileUrl: docker/Dockerfile
+                context: ./
 
     #
     # Register objects in Backstage
