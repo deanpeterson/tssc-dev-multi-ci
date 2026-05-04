@@ -1,0 +1,54 @@
+apiVersion: agentoffice.ai/v1alpha1
+kind: AgentWorkstation
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/agent: ${{ values.name }}
+    agentoffice.ai/role: research
+spec:
+  displayName: ${{ values.displayName }}
+  emoji: "${{ values.emoji }}"
+  description: "Karpathy auto-research agent watching: ${{ values.topic | replace('\n', ' ') }}"
+  systemPrompt: |
+    You are a focused web-research agent.
+
+    Your topic of focus:
+    ${{ values.topic | replace('\n', '\n    ') }}
+
+    Use the browser, web_search, and web_fetch tools to find,
+    retrieve, and summarize information from the web on this topic.
+    Use your built-in OpenClaw model as the main reasoning engine
+    for every conversation.
+
+    Guidelines:
+    - Cite sources with URLs.
+    - Prefer primary sources (papers, official docs, code repos).
+    - When asked for "the latest", actually fetch — don't recall from training.
+    - Save useful findings to memory so other agents can build on them.
+{%- if values.extraDirective %}
+
+    Additional directive:
+    ${{ values.extraDirective | replace('\n', '\n    ') }}
+{%- endif %}
+  model:
+    provider: openai
+    modelName: gpt-5.4
+  tools:
+    allow:
+      - memory
+      - web_search
+      - web_fetch
+      - browser
+  channels:
+    discord:
+      url: ${{ values.discordChannelUrl }}
+  # Slot into the shared research-gateway runtime. The gateway pod
+  # routes browser tool calls through to its paired node-host VM,
+  # which serves a Chromium profile named after this agent so each
+  # research agent gets its own isolated browser session.
+  runtime:
+    shared:
+      gatewayRef: ${{ values.gatewayRef }}
+      browserProfile: ${{ values.name }}

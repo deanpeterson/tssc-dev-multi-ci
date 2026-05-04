@@ -13,3 +13,4 @@ spec:
     - ./templates/nodejs/template.yaml
     - ./templates/python/template.yaml
     - ./templates/openclaw-agent/template.yaml
+    - ./templates/karpathy-research-agent/template.yaml

@@ -1,0 +1,23 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.displayName }}
+  description: "Karpathy research agent — topic: ${{ values.topic | replace('\n', ' ') | truncate(80, true) }}"
+  links:
+    - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.ghOwner }}/${{ values.name }}-research-agent-gitops"
+      title: "Open in Dev Spaces"
+      icon: catalog
+      type: devspaces
+  annotations:
+    argocd/app-name: ${{ values.name }}-research-agent
+    backstage.io/kubernetes-id: ${{ values.name }}
+  tags:
+    - ai
+    - agent
+    - openclaw
+    - research
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{ values.owner }}

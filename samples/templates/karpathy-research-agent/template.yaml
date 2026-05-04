@@ -1,0 +1,172 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: karpathy-research-agent
+  title: Karpathy Auto-Research Agent
+  description: >-
+    Spin up a focused web-research agent that joins the shared
+    research-gateway runtime. Each agent gets its own Chromium
+    profile on the paired node-host VM and watches one topic.
+  tags:
+    - ai
+    - agent
+    - openclaw
+    - research
+    - openshift
+spec:
+  owner: user:default/deanpeterson
+  type: service
+
+  parameters:
+    - title: Research Focus
+      required:
+        - name
+        - displayName
+        - topic
+        - owner
+      properties:
+        name:
+          title: Agent Name
+          type: string
+          description: Unique agent name (lowercase, DNS-safe). Becomes the AgentWorkstation name and the Chromium profile name on the shared node-host.
+          pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+          maxLength: 63
+          ui:autofocus: true
+        displayName:
+          title: Display Name
+          type: string
+          description: Human-readable name shown in Agent Office (e.g. "AI Safety Researcher").
+        emoji:
+          title: Emoji
+          type: string
+          description: Single emoji for the agent avatar.
+          default: "🔬"
+          maxLength: 2
+        topic:
+          title: Research Topic
+          type: string
+          description: >-
+            What this agent watches. Injected into the system prompt
+            verbatim — be specific (e.g. "Recent papers and Hacker News
+            threads on small language model distillation").
+          ui:widget: textarea
+          ui:options:
+            rows: 4
+        extraDirective:
+          title: Additional Directive (optional)
+          type: string
+          description: Extra free-form instructions appended after the auto-generated prompt.
+          ui:widget: textarea
+          ui:options:
+            rows: 4
+        owner:
+          title: Owner
+          type: string
+          description: Owner entity reference.
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+
+    - title: Routing & Deployment
+      required:
+        - namespace
+        - gatewayRef
+      properties:
+        gatewayRef:
+          title: AgentGateway
+          type: string
+          description: Name of the AgentGateway CR this agent slots into. Multiple research agents share one gateway pod and one paired browser VM.
+          default: research-gateway
+        namespace:
+          title: Namespace
+          type: string
+          description: OpenShift namespace where the AgentGateway lives.
+          default: agent-office
+        discordChannelUrl:
+          title: Discord Channel URL (optional)
+          type: string
+          description: >-
+            Discord channel/server URL. If a real channel link
+            (https://discord.com/channels/<guild>/<channel>) is given,
+            the operator will route messages from that channel to
+            this agent. Leave as @me to skip routing.
+          default: https://discord.com/channels/@me
+        ghOwner:
+          title: GitHub Owner
+          type: string
+          description: GitHub organization or user for the gitops repo.
+          default: enterprisewebservice
+
+  steps:
+    # 1. Scaffold the gitops repo (just the AgentWorkstation CR + ArgoCD app).
+    - id: fetch-gitops
+      name: Fetch GitOps Skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: gitops
+        values:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          emoji: ${{ parameters.emoji }}
+          topic: ${{ parameters.topic }}
+          extraDirective: ${{ parameters.extraDirective }}
+          gatewayRef: ${{ parameters.gatewayRef }}
+          namespace: ${{ parameters.namespace }}
+          discordChannelUrl: ${{ parameters.discordChannelUrl }}
+          owner: ${{ parameters.owner }}
+          ghOwner: ${{ parameters.ghOwner }}
+          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-research-agent-gitops
+          defaultBranch: main
+          argoNS: openshift-gitops
+          argoProject: default
+
+    # 2. Publish gitops repo to GitHub.
+    - id: publish-gitops
+      name: Publish GitOps Repository
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-research-agent-gitops
+        sourcePath: gitops
+        defaultBranch: main
+        repoVisibility: public
+        gitAuthorName: Dean Peterson
+        gitAuthorEmail: deanpeterson@users.noreply.github.com
+        description: "GitOps manifests for Karpathy research agent: ${{ parameters.displayName }}"
+
+    # 3. Wait for repo to be available.
+    - id: wait-repo
+      name: Wait for Repository
+      action: debug:wait
+      input:
+        seconds: 3
+
+    # 4. Register ArgoCD Application.
+    - id: argocd-register
+      name: Register in ArgoCD
+      action: argocd:create-resources
+      input:
+        appName: ${{ parameters.name }}-research-agent
+        argoInstance: default
+        namespace: ${{ parameters.namespace }}
+        repoUrl: ${{ steps['publish-gitops'].output.remoteUrl }}
+        path: overlays/development
+
+    # 5. Register in Backstage catalog.
+    - id: catalog-register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitops'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: GitOps Repository
+        url: ${{ steps['publish-gitops'].output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps['catalog-register'].output.entityRef }}
