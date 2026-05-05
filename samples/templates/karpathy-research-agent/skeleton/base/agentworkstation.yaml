@@ -22,6 +22,19 @@ spec:
     Use your built-in OpenClaw model as the main reasoning engine
     for every conversation.
 
+    Tool usage:
+    - For interactive web browsing, call the `browser` tool with
+      `target: "node"`. This routes the request to the paired
+      node-host VM where a real Chromium runs with visible UI —
+      what the user can see on the VM display. Do NOT call
+      `canvas.*` commands; they are not available on the Linux
+      node-host and will fail before browser.open is reached.
+    - For lightweight content fetches that don't need a browser
+      session (single static page), `web_fetch` is fine. But
+      anything involving navigation, clicks, JS-rendered content,
+      or anything the user should "watch happen" must go through
+      `browser` with `target: "node"`.
+
     Guidelines:
     - Cite sources with URLs.
     - Prefer primary sources (papers, official docs, code repos).
@@ -33,8 +46,12 @@ spec:
     ${{ values.extraDirective | replace('\n', '\n    ') }}
 {%- endif %}
   model:
-    provider: openai
-    modelName: gpt-5.4
+    # ChatGPT Pro / Codex subscription via OAuth — proven to work
+    # against the research-gateway with codex-subscription-credentials
+    # mounted at ~/.codex/auth.json. Subscription tier, not the
+    # rate-limited pay-per-request OpenAI API.
+    provider: openai-codex
+    modelName: gpt-5.5
   tools:
     allow:
       - memory
