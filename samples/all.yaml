@@ -1,8 +1,8 @@
 apiVersion: backstage.io/v1alpha1
 kind: Location
 metadata:
-  name: tssc-all
-  description: TSSC Application Samples
+  name: agent-office-templates
+  description: Agent Office software templates (OpenClaw + research agents)
 spec:
   targets:
     - ./templates/dotnet/template.yaml
