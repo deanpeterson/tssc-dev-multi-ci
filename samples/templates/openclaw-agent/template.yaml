@@ -82,7 +82,7 @@ spec:
         modelName:
           title: Model Name
           type: string
-          description: Model ID (leave empty for default). Codex subscription default: gpt-5.4
+          description: "Model ID (leave empty for default). Codex subscription default: gpt-5.4"
         routerRef:
           title: Router Name
           type: string
