@@ -1,0 +1,40 @@
+apiVersion: agentoffice.ai/v1alpha1
+kind: AutoResearchProject
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/role: autoresearch
+spec:
+  displayName: ${{ values.displayName }}
+  validationMode: ${{ values.validationMode }}
+
+  baseModel:
+    huggingfaceId: ${{ values.baseModel }}
+    revision: ${{ values.baseModelRevision }}
+
+  trainingData:
+    huggingfaceDataset: ${{ values.dataset }}
+    split: ${{ values.trainingSplit }}
+    sampleCount: ${{ values.trainingSampleCount }}
+
+  eval:
+    metric: ${{ values.evalMetric }}
+    direction: ${{ values.evalDirection }}
+
+  loopConfig:
+    cadenceMinutes: ${{ values.cadenceMinutes }}
+    maxConcurrentRuns: ${{ values.maxConcurrentRuns }}
+    maxTotalExperiments: ${{ values.maxTotalExperiments }}
+
+  experimenter:
+    workstation: ${{ values.name }}-experimenter
+
+  knowledgeBase: ${{ values.name }}-wiki
+
+{%- if values.modelRegistryInstance %}
+  adapterStorage:
+    modelRegistry:
+      registryInstance: ${{ values.modelRegistryInstance }}
+{%- endif %}

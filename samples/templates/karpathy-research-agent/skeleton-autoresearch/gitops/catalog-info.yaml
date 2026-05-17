@@ -1,0 +1,25 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: ${{ values.displayName }}
+  description: "Karpathy-style autoresearch project — base=${{ values.baseModel }}, dataset=${{ values.dataset }}"
+  links:
+    - url: ${{ values.wikiRepoURL }}
+      title: Wiki (GitHub)
+      icon: catalog
+    - url: ${{ values.gitopsRepoURL }}
+      title: GitOps Repo (GitHub)
+      icon: github
+  annotations:
+    argocd/app-name: ${{ values.name }}-autoresearch
+    backstage.io/kubernetes-id: ${{ values.name }}
+  tags:
+    - ai
+    - autoresearch
+    - qlora
+    - openshift
+spec:
+  type: ai-loop
+  owner: ${{ values.owner }}
+  lifecycle: experimental
