@@ -170,14 +170,36 @@ spec:
                 kind:
                   type: string
                 baseModel:
-                  title: Base Model (Hugging Face)
+                  title: Base Model (from Model Registry)
                   type: string
-                  description: HF model id, e.g. ibm-granite/granite-4.1-8b
-                  default: ibm-granite/granite-4.1-8b
+                  description: >-
+                    Pick any model registered in RHOAI Model Registry.
+                    The dropdown is fed live from the agent-office-operator's
+                    /backstage/catalog.yaml endpoint, which lists every
+                    ModelRegistry CR cluster-wide. Add new models via the
+                    RHOAI Dashboard → Model Registry; they appear here on
+                    the next Backstage catalog poll (~100s). Use the
+                    "Custom URI override" field below to bypass the
+                    registry entirely.
+                  ui:field: EntityPicker
+                  ui:options:
+                    catalogFilter:
+                      kind: Resource
+                      spec.type: ml-model
+                baseModelCustomURI:
+                  title: Custom URI Override (optional — OR the picker above)
+                  type: string
+                  description: >-
+                    Free-text override for models NOT in the Model Registry
+                    (e.g. an external HF id you haven't registered yet, or a
+                    direct oci://... reference). Leave blank to use the
+                    EntityPicker value above. If both are set, this field
+                    wins.
+                  default: ""
                 baseModelRevision:
                   title: Base Model Revision
                   type: string
-                  description: branch / tag / commit
+                  description: branch / tag / commit (ignored for OCI URIs)
                   default: main
                 dataset:
                   title: Training Dataset (Hugging Face)
@@ -321,6 +343,18 @@ spec:
           argoNS: openshift-gitops
           argoProject: default
 
+    # Resolve the EntityPicker entity reference (e.g.
+    # "resource:default/ibm-granite-granite-4-1-8b-main") to the
+    # concrete model URI annotation. The operator's BackstageCatalogHandler
+    # stores the URI in `metadata.annotations.agentoffice.ai/model-uri`
+    # — that's what the trainer wants (HF id or oci://...).
+    - id: resolve-base-model
+      name: Resolve Base Model URI from Model Registry
+      if: ${{ parameters.kind === "autoresearch-project" and parameters.baseModel and parameters.baseModel.length > 0 }}
+      action: catalog:fetch
+      input:
+        entityRef: ${{ parameters.baseModel }}
+
     - id: fetch-autoresearch
       name: Fetch Autoresearch-Project Skeleton
       if: ${{ parameters.kind === "autoresearch-project" }}
@@ -335,7 +369,10 @@ spec:
           namespace: ${{ parameters.namespace }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          baseModel: ${{ parameters.baseModel }}
+          # baseModel resolution: customURI wins if set; otherwise use
+          # the URI annotation from the picked Resource entity; final
+          # fallback to a sensible HF default.
+          baseModel: ${{ parameters.baseModelCustomURI if parameters.baseModelCustomURI else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri'] if steps['resolve-base-model'].output else 'ibm-granite/granite-4.1-8b') }}
           baseModelRevision: ${{ parameters.baseModelRevision }}
           dataset: ${{ parameters.dataset }}
           trainingSplit: ${{ parameters.trainingSplit }}
