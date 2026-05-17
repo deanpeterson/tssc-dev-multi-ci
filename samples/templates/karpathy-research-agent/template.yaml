@@ -2,23 +2,26 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: karpathy-research-agent
-  title: Karpathy Auto-Research Agent / Project
+  title: Karpathy Agent — Knowledge Base or Auto-Research
   description: >-
-    Two modes:
-      1. Web research agent — a focused web-research AgentWorkstation
-         that joins the shared research-gateway runtime.
-      2. Autoresearch project — full Karpathy-style QLoRA fine-tuning
-         loop: AutoResearchProject + per-project wiki (KnowledgeBase)
-         + experimenter AgentWorkstation + ModelRegistry-backed
-         baseModel picker + the GitHub repo for the wiki, plus every
-         Secret needed (git PAT, optional Quay robot). The PAT scope
-         is validated at step time via publish:github so bad auth
-         never reaches the cluster.
+    Two distinct things you can create from one form. Pick first.
+
+    LLM Knowledge Base Creator — an agent that watches a topic on
+    the web, files findings into a per-project wiki, and answers
+    follow-up questions from the accumulated knowledge. Creates the
+    KnowledgeBase + wiki repo + AgentWorkstation. No base model
+    selection — this kind doesn't fine-tune anything.
+
+    LLM Auto-Research Agent — the full Karpathy-style QLoRA
+    fine-tuning loop. Creates the AutoResearchProject + a per-project
+    wiki for experiment logs + the experimenter AgentWorkstation +
+    Model Registry binding. Base model is picked from the cluster's
+    Model Registry.
   tags:
     - ai
     - agent
     - openclaw
-    - research
+    - knowledge-base
     - autoresearch
     - openshift
     - qlora
@@ -28,7 +31,9 @@ spec:
 
   parameters:
     # =====================================================================
-    # Step 1: kind picker. Drives which subsequent steps appear.
+    # PAGE 1 — Kind picker. This is the first decision: are you
+    # building a knowledge base, or fine-tuning a model? They're
+    # different things and the rest of the form changes accordingly.
     # =====================================================================
     - title: What are you creating?
       required:
@@ -38,56 +43,63 @@ spec:
           title: Kind
           type: string
           description: >-
-            "Web research agent" creates one AgentWorkstation that
-            watches a topic on the web. "Autoresearch project" creates
-            the full QLoRA loop bundle (project + wiki + experimenter
-            agent + ModelRegistry binding + every Secret) — base model
-            picked live from the cluster's Model Registry.
+            Knowledge Base Creator → agent that builds a curated
+            knowledge base by watching a topic on the web.
+            Auto-Research Agent → fine-tunes a model in a Karpathy-style
+            loop and produces adapters in Quay + Model Registry.
           enum:
-            - web-research-agent
-            - autoresearch-project
+            - llm-knowledge-base-creator
+            - llm-auto-research-agent
           enumNames:
-            - Web research agent (single agent)
-            - Autoresearch project (QLoRA loop, full bundle)
-          default: autoresearch-project
+            - "LLM Knowledge Base Creator (watches a topic, fills a wiki)"
+            - "LLM Auto-Research Agent (QLoRA fine-tuning loop)"
+          default: llm-knowledge-base-creator
+          ui:widget: radio
 
     # =====================================================================
-    # Step 2: web-research-agent identity + topic (only shown when
-    #         kind = web-research-agent).
+    # PAGE 2 (KB CREATOR MODE) — Topic + Identity. Topic is the only
+    # required research-specific field; everything else has sensible
+    # defaults.
     # =====================================================================
-    - title: Web Research Agent
+    - title: Knowledge Base Identity
       dependencies:
         kind:
           oneOf:
             - properties:
                 kind:
-                  const: web-research-agent
+                  const: llm-knowledge-base-creator
               required:
                 - name
-                - displayName
                 - topic
                 - owner
               properties:
                 kind:
                   type: string
                 name:
-                  title: Agent Name
+                  title: Short Name
                   type: string
-                  description: Lowercase, DNS-safe.
+                  description: >-
+                    Lowercase, DNS-safe. Becomes the AgentWorkstation
+                    name, the KnowledgeBase name (with "-wiki" suffix),
+                    and the GitHub repo names.
                   pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
                   maxLength: 63
                   ui:autofocus: true
                 displayName:
-                  title: Display Name
+                  title: Display Name (optional — defaults to humanized name)
                   type: string
+                  default: ""
                 emoji:
                   title: Emoji
                   type: string
-                  default: "🔬"
+                  default: "📚"
                   maxLength: 2
                 topic:
                   title: Research Topic
                   type: string
+                  description: >-
+                    What this agent watches. Injected into the system
+                    prompt verbatim — be specific.
                   ui:widget: textarea
                   ui:options:
                     rows: 4
@@ -106,31 +118,58 @@ spec:
                       kind:
                         - Group
                         - User
+            - properties:
+                kind:
+                  const: llm-auto-research-agent
+
+    # =====================================================================
+    # PAGE 2 (KB CREATOR MODE, continued) — Routing, wiki PAT, channels.
+    # =====================================================================
+    - title: Routing, Wiki & Channels (Knowledge Base Creator)
+      dependencies:
+        kind:
+          oneOf:
+            - properties:
+                kind:
+                  const: llm-knowledge-base-creator
+              required:
+                - wikiGitToken
+              properties:
+                kind:
+                  type: string
+                gatewayRef:
+                  title: AgentGateway
+                  type: string
+                  description: Shared gateway this agent slots into.
+                  default: research-gateway
                 namespace:
                   title: Namespace
                   type: string
                   default: agent-office
-                gatewayRef:
-                  title: AgentGateway
-                  type: string
-                  default: research-gateway
-                discordChannelUrl:
-                  title: Discord Channel URL (optional)
-                  type: string
-                  default: https://discord.com/channels/@me
                 ghOwner:
                   title: GitHub Owner
                   type: string
                   default: enterprisewebservice
+                wikiGitToken:
+                  title: GitHub PAT for the new wiki repo
+                  type: string
+                  description: >-
+                    Fine-grained PAT with "Contents: Read and write"
+                    on the new <ghOwner>/<name>-wiki repo. Validated
+                    at step time via publish:github — bad scope fails
+                    loud here, not silently inside the cluster.
+                  ui:widget: password
+                discordChannelUrl:
+                  title: Discord Channel URL (optional)
+                  type: string
+                  default: https://discord.com/channels/@me
             - properties:
                 kind:
-                  const: autoresearch-project
+                  const: llm-auto-research-agent
 
     # =====================================================================
-    # Step 3 (AUTORESEARCH MODE): Base Model — PICKED FIRST so the rest
-    # of the form can default off it. The picker is fed live from the
-    # operator's /backstage/catalog.yaml endpoint (Model Registry as
-    # source of truth).
+    # PAGE 2 (AUTO-RESEARCH MODE) — Base Model is the FIRST thing. Live
+    # dropdown from the cluster's Model Registry.
     # =====================================================================
     - title: Base Model (from Model Registry)
       dependencies:
@@ -138,10 +177,10 @@ spec:
           oneOf:
             - properties:
                 kind:
-                  const: web-research-agent
+                  const: llm-knowledge-base-creator
             - properties:
                 kind:
-                  const: autoresearch-project
+                  const: llm-auto-research-agent
               required:
                 - baseModel
                 - owner
@@ -152,10 +191,11 @@ spec:
                   title: Base Model
                   type: string
                   description: >-
-                    Live dropdown of every model in the cluster's
-                    Model Registry. Add new models via the RHOAI
-                    Dashboard → Model Registry; they appear here
-                    on the next catalog poll (~100s).
+                    Live dropdown fed by the operator's
+                    /backstage/catalog.yaml endpoint — every
+                    ModelRegistry CR's contents cluster-wide. Add a
+                    new model via the RHOAI Dashboard → Model Registry
+                    and it appears here on the next catalog poll.
                   ui:field: EntityPicker
                   ui:options:
                     catalogFilter:
@@ -165,8 +205,8 @@ spec:
                   title: Custom URI Override (optional)
                   type: string
                   description: >-
-                    Free-text override for models NOT in the registry
-                    yet. Wins over the picker above if set.
+                    Free-text override for models NOT yet in the
+                    registry. Wins over the picker if set.
                   default: ""
                 baseModelRevision:
                   title: Base Model Revision
@@ -184,26 +224,24 @@ spec:
                         - User
 
     # =====================================================================
-    # Step 4 (AUTORESEARCH MODE): Training — all sane defaults. The
-    # power user can adjust; the casual user can hit Next.
+    # PAGE 3 (AUTO-RESEARCH MODE) — Training.
     # =====================================================================
-    - title: Training (defaults shown — adjust if needed)
+    - title: Training (sensible defaults — click through if unsure)
       dependencies:
         kind:
           oneOf:
             - properties:
                 kind:
-                  const: web-research-agent
+                  const: llm-knowledge-base-creator
             - properties:
                 kind:
-                  const: autoresearch-project
+                  const: llm-auto-research-agent
               properties:
                 kind:
                   type: string
                 dataset:
                   title: Training Dataset (Hugging Face)
                   type: string
-                  description: Code-gen baseline. Override with any HF dataset id.
                   default: ise-uiuc/Magicoder-OSS-Instruct-75K
                 trainingSplit:
                   title: Training Split
@@ -237,22 +275,21 @@ spec:
                 validationMode:
                   title: Start in validation mode (10-step smoke tests first)
                   type: boolean
-                  description: Recommended for the first cycle. Flip off to start real training.
                   default: false
 
     # =====================================================================
-    # Step 5 (AUTORESEARCH MODE): Wiki, Quay, Model Registry.
+    # PAGE 4 (AUTO-RESEARCH MODE) — Wiki, Quay, Model Registry.
     # =====================================================================
-    - title: Wiki + Persistence (PAT required)
+    - title: Wiki & Persistence (Auto-Research)
       dependencies:
         kind:
           oneOf:
             - properties:
                 kind:
-                  const: web-research-agent
+                  const: llm-knowledge-base-creator
             - properties:
                 kind:
-                  const: autoresearch-project
+                  const: llm-auto-research-agent
               required:
                 - wikiGitToken
               properties:
@@ -263,10 +300,8 @@ spec:
                   type: string
                   description: >-
                     Fine-grained PAT with "Contents: Read and write"
-                    on the new <ghOwner>/<project>-wiki repo. The
-                    template validates this BEFORE any cluster apply
-                    via publish:github — bad scope fails loud here,
-                    not silently inside the cluster.
+                    on the new <ghOwner>/<project>-wiki repo. Validated
+                    at step time via publish:github.
                   ui:widget: password
                 quayRobotUsername:
                   title: Quay Robot Username (optional)
@@ -284,7 +319,6 @@ spec:
                 modelRegistryInstance:
                   title: ModelRegistry Instance
                   type: string
-                  description: Existing instance to register adapters into.
                   default: autoresearch-registry
                 experimenterPromptExtra:
                   title: Experimenter Extra Directive (optional)
@@ -308,28 +342,25 @@ spec:
                 nameOverride:
                   title: Project Name Override (optional)
                   type: string
-                  description: >-
-                    Auto-derived from the picked model name if left
-                    blank. Provide a custom name only if you want
-                    something other than the default.
+                  description: Leave blank — auto-derived from picked model.
                   pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
                   default: ""
 
   # =======================================================================
-  # Steps.
+  # STEPS
   # =======================================================================
   steps:
-    # ------- web-research-agent path -------
-    - id: fetch-web-research
-      name: Fetch Web-Research Skeleton
-      if: ${{ parameters.kind === "web-research-agent" }}
+    # ------- LLM Knowledge Base Creator path -------
+    - id: fetch-kb-creator
+      name: Fetch KB-Creator Skeleton
+      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
       action: fetch:template
       input:
-        url: ./skeleton
+        url: ./skeleton-kb-creator
         targetPath: gitops
         values:
           name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
+          displayName: ${{ parameters.displayName if parameters.displayName else parameters.name | replace('-', ' ') | title }}
           emoji: ${{ parameters.emoji }}
           topic: ${{ parameters.topic }}
           extraDirective: ${{ parameters.extraDirective }}
@@ -338,70 +369,83 @@ spec:
           discordChannelUrl: ${{ parameters.discordChannelUrl }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-research-agent-gitops
+          wikiGitToken: ${{ secrets.wikiGitToken }}
+          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-kb-gitops
+          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-wiki
           defaultBranch: main
           argoNS: openshift-gitops
           argoProject: default
 
-    - id: publish-gitops-web-research
-      name: Publish GitOps (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
+    - id: publish-wiki-kb
+      name: Publish Wiki Repository (KB-Creator)
+      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
       action: publish:github
       input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-research-agent-gitops
-        sourcePath: gitops
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-wiki
+        sourcePath: gitops/wiki-seed
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Dean Peterson
+        gitAuthorEmail: deanpeterson@users.noreply.github.com
+        description: "Knowledge base for ${{ parameters.name }} — agent-curated findings."
+        token: ${{ secrets.wikiGitToken }}
+
+    - id: publish-gitops-kb
+      name: Publish GitOps (KB-Creator)
+      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-kb-gitops
+        sourcePath: gitops/gitops
         defaultBranch: main
         repoVisibility: public
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: "GitOps manifests for Karpathy research agent: ${{ parameters.displayName }}"
+        description: "GitOps manifests for KB-Creator agent: ${{ parameters.name }}"
 
-    - id: argocd-register-web-research
-      name: Register in ArgoCD (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
+    - id: argocd-register-kb
+      name: Register in ArgoCD (KB-Creator)
+      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
       action: argocd:create-resources
       input:
-        appName: ${{ parameters.name }}-research-agent
+        appName: ${{ parameters.name }}-kb
         argoInstance: default
         namespace: ${{ parameters.namespace }}
-        repoUrl: ${{ steps['publish-gitops-web-research'].output.remoteUrl }}
+        repoUrl: ${{ steps['publish-gitops-kb'].output.remoteUrl }}
         path: overlays/development
 
-    - id: catalog-register-web-research
-      name: Register in Catalog (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
+    - id: catalog-register-kb
+      name: Register in Catalog (KB-Creator)
+      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
       action: catalog:register
       input:
-        repoContentsUrl: ${{ steps['publish-gitops-web-research'].output.repoContentsUrl }}
+        repoContentsUrl: ${{ steps['publish-gitops-kb'].output.repoContentsUrl }}
         catalogInfoPath: /catalog-info.yaml
 
-    # ------- autoresearch-project path -------
+    # ------- LLM Auto-Research Agent path -------
     - id: resolve-base-model
       name: Resolve Base Model from Registry
-      if: ${{ parameters.kind === "autoresearch-project" and parameters.baseModel and parameters.baseModel.length > 0 }}
+      if: ${{ parameters.kind === "llm-auto-research-agent" and parameters.baseModel and parameters.baseModel.length > 0 }}
       action: catalog:fetch
       input:
         entityRef: ${{ parameters.baseModel }}
 
     - id: fetch-autoresearch
-      name: Fetch Autoresearch-Project Skeleton
-      if: ${{ parameters.kind === "autoresearch-project" }}
+      name: Fetch Auto-Research Skeleton
+      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: fetch:template
       input:
         url: ./skeleton-autoresearch
         targetPath: gitops
         values:
-          # Project name: user override > sanitized(registeredModel-modelVersion) > fallback
+          # Project name: user override > derived from picked entity > fallback.
           name: ${{ parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project') | replace('/', '-') | replace('.', '-') | lower }}
-          # Display name: from picked entity title; falls back to the entity name; falls back to a generic.
           displayName: ${{ 'AutoResearch: ' + (steps['resolve-base-model'].output.entity.metadata.title if steps['resolve-base-model'].output and steps['resolve-base-model'].output.entity.metadata.title else (parameters.baseModelCustomURI if parameters.baseModelCustomURI else 'Karpathy Loop')) }}
-          # Description: derived; no human typing.
           description: ${{ 'Karpathy-style autoresearch loop fine-tuning ' + (parameters.baseModelCustomURI if parameters.baseModelCustomURI else steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri']) + ' on ' + parameters.dataset + '.' }}
           emoji: ${{ parameters.emoji }}
           namespace: ${{ parameters.namespace }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          # baseModel resolution: customURI wins, else picked entity URI (huggingface://... stripped), else granite default.
           baseModel: ${{ parameters.baseModelCustomURI if parameters.baseModelCustomURI else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri'] | replace('huggingface://', '') if steps['resolve-base-model'].output else 'ibm-granite/granite-4.1-8b') }}
           baseModelRevision: ${{ parameters.baseModelRevision }}
           dataset: ${{ parameters.dataset }}
@@ -419,7 +463,6 @@ spec:
           quayNamespace: ${{ parameters.quayNamespace }}
           modelRegistryInstance: ${{ parameters.modelRegistryInstance }}
           experimenterPromptExtra: ${{ parameters.experimenterPromptExtra }}
-          # URL templates (depend on the derived name).
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
           wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
           gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
@@ -427,10 +470,9 @@ spec:
           argoNS: openshift-gitops
           argoProject: default
 
-    # Publish the wiki repo first — bad-scope PAT fails LOUD here.
-    - id: publish-wiki
-      name: Publish Wiki Repository
-      if: ${{ parameters.kind === "autoresearch-project" }}
+    - id: publish-wiki-autoresearch
+      name: Publish Wiki Repository (Auto-Research)
+      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
@@ -439,12 +481,12 @@ spec:
         repoVisibility: private
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: Autoresearch wiki — agent-written proposals + results.
+        description: "Autoresearch experiment wiki."
         token: ${{ secrets.wikiGitToken }}
 
     - id: publish-gitops-autoresearch
-      name: Publish GitOps (autoresearch-project)
-      if: ${{ parameters.kind === "autoresearch-project" }}
+      name: Publish GitOps (Auto-Research)
+      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
@@ -453,18 +495,11 @@ spec:
         repoVisibility: public
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: GitOps manifests for autoresearch project.
-
-    - id: wait-repo
-      name: Wait for Repository
-      if: ${{ parameters.kind === "autoresearch-project" }}
-      action: debug:wait
-      input:
-        seconds: 3
+        description: "GitOps manifests for auto-research project."
 
     - id: argocd-register-autoresearch
-      name: Register in ArgoCD (autoresearch-project)
-      if: ${{ parameters.kind === "autoresearch-project" }}
+      name: Register in ArgoCD (Auto-Research)
+      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: argocd:create-resources
       input:
         appName: ${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
@@ -474,8 +509,8 @@ spec:
         path: overlays/development
 
     - id: catalog-register-autoresearch
-      name: Register in Catalog (autoresearch-project)
-      if: ${{ parameters.kind === "autoresearch-project" }}
+      name: Register in Catalog (Auto-Research)
+      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: catalog:register
       input:
         repoContentsUrl: ${{ steps['publish-gitops-autoresearch'].output.repoContentsUrl }}
@@ -483,15 +518,18 @@ spec:
 
   output:
     links:
-      - title: GitOps Repository (web-research)
-        url: ${{ steps['publish-gitops-web-research'].output.remoteUrl }}
-        if: ${{ parameters.kind === "web-research-agent" }}
-      - title: GitOps Repository (autoresearch)
+      - title: GitOps Repository (KB-Creator)
+        url: ${{ steps['publish-gitops-kb'].output.remoteUrl }}
+        if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
+      - title: Wiki Repository (KB-Creator)
+        url: ${{ steps['publish-wiki-kb'].output.remoteUrl }}
+        if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
+      - title: GitOps Repository (Auto-Research)
         url: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
-        if: ${{ parameters.kind === "autoresearch-project" }}
-      - title: Wiki Repository
-        url: ${{ steps['publish-wiki'].output.remoteUrl }}
-        if: ${{ parameters.kind === "autoresearch-project" }}
+        if: ${{ parameters.kind === "llm-auto-research-agent" }}
+      - title: Wiki Repository (Auto-Research)
+        url: ${{ steps['publish-wiki-autoresearch'].output.remoteUrl }}
+        if: ${{ parameters.kind === "llm-auto-research-agent" }}
       - title: Open in Catalog
         icon: catalog
-        entityRef: ${{ steps['catalog-register-web-research'].output.entityRef or steps['catalog-register-autoresearch'].output.entityRef }}
+        entityRef: ${{ steps['catalog-register-kb'].output.entityRef or steps['catalog-register-autoresearch'].output.entityRef }}

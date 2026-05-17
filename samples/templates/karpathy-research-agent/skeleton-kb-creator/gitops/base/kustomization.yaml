@@ -8,3 +8,5 @@ commonLabels:
   backstage.io/kubernetes-id: ${{ values.name }}
 resources:
   - agentworkstation.yaml
+  - knowledgebase.yaml
+  - wiki-git-token-secret.yaml
