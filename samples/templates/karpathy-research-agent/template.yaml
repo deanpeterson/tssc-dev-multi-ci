@@ -6,15 +6,14 @@ metadata:
   description: >-
     Two modes:
       1. Web research agent — a focused web-research AgentWorkstation
-         that joins the shared research-gateway runtime (its own
-         Chromium profile + topic).
+         that joins the shared research-gateway runtime.
       2. Autoresearch project — full Karpathy-style QLoRA fine-tuning
          loop: AutoResearchProject + per-project wiki (KnowledgeBase)
-         + experimenter AgentWorkstation + ModelRegistry instance +
-         the GitHub repo for the wiki, plus every Secret needed (git
-         PAT, Quay robot) — all wired together via GitOps. Form-time
-         validation of token scopes so we never ship broken auth to
-         the cluster.
+         + experimenter AgentWorkstation + ModelRegistry-backed
+         baseModel picker + the GitHub repo for the wiki, plus every
+         Secret needed (git PAT, optional Quay robot). The PAT scope
+         is validated at step time via publish:github so bad auth
+         never reaches the cluster.
   tags:
     - ai
     - agent
@@ -39,76 +38,24 @@ spec:
           title: Kind
           type: string
           description: >-
-            Pick "Web research agent" to spin up just an
-            AgentWorkstation that watches a topic on the web.
-            Pick "Autoresearch project" for the full QLoRA loop
-            (AutoResearchProject + KnowledgeBase wiki + experimenter
-            agent + ModelRegistry instance + every Secret).
+            "Web research agent" creates one AgentWorkstation that
+            watches a topic on the web. "Autoresearch project" creates
+            the full QLoRA loop bundle (project + wiki + experimenter
+            agent + ModelRegistry binding + every Secret) — base model
+            picked live from the cluster's Model Registry.
           enum:
             - web-research-agent
             - autoresearch-project
           enumNames:
             - Web research agent (single agent)
             - Autoresearch project (QLoRA loop, full bundle)
-          default: web-research-agent
+          default: autoresearch-project
 
     # =====================================================================
-    # Step 2: identity. Common to both kinds.
-    # =====================================================================
-    - title: Identity
-      required:
-        - name
-        - displayName
-        - owner
-      properties:
-        name:
-          title: Name
-          type: string
-          description: >-
-            Unique name (lowercase, DNS-safe). For "web research
-            agent" this is the AgentWorkstation name. For
-            "autoresearch project" this is the AutoResearchProject
-            name (and a "-experimenter" agent + "-wiki" KB are
-            derived from it).
-          pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-          maxLength: 63
-          ui:autofocus: true
-        displayName:
-          title: Display Name
-          type: string
-          description: Human-readable name shown in Agent Office.
-        emoji:
-          title: Emoji
-          type: string
-          description: Single emoji for the avatar.
-          default: "🔬"
-          maxLength: 2
-        owner:
-          title: Owner
-          type: string
-          description: Owner entity reference.
-          ui:field: EntityPicker
-          ui:options:
-            catalogFilter:
-              kind:
-                - Group
-                - User
-        namespace:
-          title: Namespace
-          type: string
-          description: OpenShift namespace.
-          default: agent-office
-        ghOwner:
-          title: GitHub Owner
-          type: string
-          description: GitHub organization or user for repos.
-          default: enterprisewebservice
-
-    # =====================================================================
-    # Step 3: Web-research-agent-only parameters (rendered only when
+    # Step 2: web-research-agent identity + topic (only shown when
     #         kind = web-research-agent).
     # =====================================================================
-    - title: Research Focus (web-research-agent only)
+    - title: Web Research Agent
       dependencies:
         kind:
           oneOf:
@@ -116,44 +63,76 @@ spec:
                 kind:
                   const: web-research-agent
               required:
+                - name
+                - displayName
                 - topic
+                - owner
               properties:
                 kind:
                   type: string
+                name:
+                  title: Agent Name
+                  type: string
+                  description: Lowercase, DNS-safe.
+                  pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+                  maxLength: 63
+                  ui:autofocus: true
+                displayName:
+                  title: Display Name
+                  type: string
+                emoji:
+                  title: Emoji
+                  type: string
+                  default: "🔬"
+                  maxLength: 2
                 topic:
                   title: Research Topic
                   type: string
-                  description: >-
-                    What this agent watches. Injected into the system
-                    prompt verbatim. Be specific (e.g. "Recent papers
-                    and HN threads on small-model distillation").
                   ui:widget: textarea
                   ui:options:
                     rows: 4
                 extraDirective:
                   title: Additional Directive (optional)
                   type: string
-                  description: Extra free-form instructions appended after the auto prompt.
                   ui:widget: textarea
                   ui:options:
                     rows: 4
+                owner:
+                  title: Owner
+                  type: string
+                  ui:field: EntityPicker
+                  ui:options:
+                    catalogFilter:
+                      kind:
+                        - Group
+                        - User
+                namespace:
+                  title: Namespace
+                  type: string
+                  default: agent-office
                 gatewayRef:
                   title: AgentGateway
                   type: string
-                  description: Shared gateway this agent slots into.
                   default: research-gateway
                 discordChannelUrl:
                   title: Discord Channel URL (optional)
                   type: string
                   default: https://discord.com/channels/@me
+                ghOwner:
+                  title: GitHub Owner
+                  type: string
+                  default: enterprisewebservice
             - properties:
                 kind:
                   const: autoresearch-project
 
     # =====================================================================
-    # Step 4: Autoresearch-project parameters.
+    # Step 3 (AUTORESEARCH MODE): Base Model — PICKED FIRST so the rest
+    # of the form can default off it. The picker is fed live from the
+    # operator's /backstage/catalog.yaml endpoint (Model Registry as
+    # source of truth).
     # =====================================================================
-    - title: Training (autoresearch-project only)
+    - title: Base Model (from Model Registry)
       dependencies:
         kind:
           oneOf:
@@ -165,46 +144,66 @@ spec:
                   const: autoresearch-project
               required:
                 - baseModel
-                - dataset
+                - owner
               properties:
                 kind:
                   type: string
                 baseModel:
-                  title: Base Model (from Model Registry)
+                  title: Base Model
                   type: string
                   description: >-
-                    Pick any model registered in RHOAI Model Registry.
-                    The dropdown is fed live from the agent-office-operator's
-                    /backstage/catalog.yaml endpoint, which lists every
-                    ModelRegistry CR cluster-wide. Add new models via the
-                    RHOAI Dashboard → Model Registry; they appear here on
-                    the next Backstage catalog poll (~100s). Use the
-                    "Custom URI override" field below to bypass the
-                    registry entirely.
+                    Live dropdown of every model in the cluster's
+                    Model Registry. Add new models via the RHOAI
+                    Dashboard → Model Registry; they appear here
+                    on the next catalog poll (~100s).
                   ui:field: EntityPicker
                   ui:options:
                     catalogFilter:
                       kind: Resource
                       spec.type: ml-model
                 baseModelCustomURI:
-                  title: Custom URI Override (optional — OR the picker above)
+                  title: Custom URI Override (optional)
                   type: string
                   description: >-
-                    Free-text override for models NOT in the Model Registry
-                    (e.g. an external HF id you haven't registered yet, or a
-                    direct oci://... reference). Leave blank to use the
-                    EntityPicker value above. If both are set, this field
-                    wins.
+                    Free-text override for models NOT in the registry
+                    yet. Wins over the picker above if set.
                   default: ""
                 baseModelRevision:
                   title: Base Model Revision
                   type: string
-                  description: branch / tag / commit (ignored for OCI URIs)
+                  description: branch/tag/commit (ignored for OCI URIs)
                   default: main
+                owner:
+                  title: Owner
+                  type: string
+                  ui:field: EntityPicker
+                  ui:options:
+                    catalogFilter:
+                      kind:
+                        - Group
+                        - User
+
+    # =====================================================================
+    # Step 4 (AUTORESEARCH MODE): Training — all sane defaults. The
+    # power user can adjust; the casual user can hit Next.
+    # =====================================================================
+    - title: Training (defaults shown — adjust if needed)
+      dependencies:
+        kind:
+          oneOf:
+            - properties:
+                kind:
+                  const: web-research-agent
+            - properties:
+                kind:
+                  const: autoresearch-project
+              properties:
+                kind:
+                  type: string
                 dataset:
                   title: Training Dataset (Hugging Face)
                   type: string
-                  description: HF dataset id, e.g. ise-uiuc/Magicoder-OSS-Instruct-75K
+                  description: Code-gen baseline. Override with any HF dataset id.
                   default: ise-uiuc/Magicoder-OSS-Instruct-75K
                 trainingSplit:
                   title: Training Split
@@ -213,7 +212,6 @@ spec:
                 trainingSampleCount:
                   title: Training Sample Count Cap
                   type: integer
-                  description: Cap the training set size (operator clamps to 200 in validationMode).
                   default: 2000
                 evalMetric:
                   title: Eval Metric
@@ -225,9 +223,8 @@ spec:
                   enum: [minimize, maximize]
                   default: minimize
                 cadenceMinutes:
-                  title: Cadence (minutes)
+                  title: Cadence (minutes between rounds)
                   type: integer
-                  description: Min delay between rounds.
                   default: 30
                 maxConcurrentRuns:
                   title: Max Concurrent Runs
@@ -236,23 +233,17 @@ spec:
                 maxTotalExperiments:
                   title: Max Total Experiments
                   type: integer
-                  description: Loop stops after this many.
                   default: 100
                 validationMode:
-                  title: Start in validation mode (10-step smoke tests)
+                  title: Start in validation mode (10-step smoke tests first)
                   type: boolean
-                  description: >-
-                    Run validation-mode smoke tests (10 steps, batch 1,
-                    seq 256, sample cap 200) instead of real training
-                    until you flip this off. Recommended for the first
-                    cycle to prove the pipeline works end-to-end before
-                    burning real compute.
+                  description: Recommended for the first cycle. Flip off to start real training.
                   default: false
 
     # =====================================================================
-    # Step 5: Wiki + secrets (autoresearch-project only).
+    # Step 5 (AUTORESEARCH MODE): Wiki, Quay, Model Registry.
     # =====================================================================
-    - title: Wiki, Quay, Model Registry (autoresearch-project only)
+    - title: Wiki + Persistence (PAT required)
       dependencies:
         kind:
           oneOf:
@@ -268,58 +259,67 @@ spec:
                 kind:
                   type: string
                 wikiGitToken:
-                  title: Wiki GitHub PAT
+                  title: GitHub PAT for the new wiki repo
                   type: string
                   description: >-
-                    Fine-grained GitHub personal access token with
-                    "Contents: Read and write" on the new wiki repo
-                    (which will be <ghOwner>/<name>-wiki). The token
-                    is committed to gitops as a Kubernetes Secret —
-                    plan to rotate or migrate to sealed-secrets.
+                    Fine-grained PAT with "Contents: Read and write"
+                    on the new <ghOwner>/<project>-wiki repo. The
+                    template validates this BEFORE any cluster apply
+                    via publish:github — bad scope fails loud here,
+                    not silently inside the cluster.
                   ui:widget: password
                 quayRobotUsername:
                   title: Quay Robot Username (optional)
                   type: string
-                  description: e.g. rhdh+pipeline. Leave blank to reuse the cluster default.
                   default: ""
                 quayRobotPassword:
                   title: Quay Robot Password (optional)
                   type: string
-                  description: Password for the robot above. Only used if username is set.
                   ui:widget: password
                   default: ""
                 quayNamespace:
                   title: Quay Namespace
                   type: string
-                  description: >-
-                    Quay organization/user. Adapter pushes target
-                    <registry>/<quayNamespace>/<projectName>:round-N.
                   default: deanpeterson
                 modelRegistryInstance:
-                  title: ModelRegistry Instance Name
+                  title: ModelRegistry Instance
                   type: string
-                  description: >-
-                    Use existing instance (e.g. "autoresearch-registry")
-                    or pick a new name — a fresh postgres + ModelRegistry
-                    CR will be created. Set to empty to skip registration.
+                  description: Existing instance to register adapters into.
                   default: autoresearch-registry
                 experimenterPromptExtra:
-                  title: Experimenter System Prompt — extra notes (optional)
+                  title: Experimenter Extra Directive (optional)
                   type: string
-                  description: >-
-                    Free-form text appended to the QLoRA experimenter's
-                    system prompt. The base prompt is fixed; this is
-                    where you'd say things like "Prefer rank=4 to save
-                    memory on this hardware" or "Avoid k_proj".
                   ui:widget: textarea
                   ui:options:
                     rows: 4
+                emoji:
+                  title: Emoji
+                  type: string
+                  default: "🔬"
+                  maxLength: 2
+                namespace:
+                  title: OpenShift Namespace
+                  type: string
+                  default: agent-office
+                ghOwner:
+                  title: GitHub Owner
+                  type: string
+                  default: enterprisewebservice
+                nameOverride:
+                  title: Project Name Override (optional)
+                  type: string
+                  description: >-
+                    Auto-derived from the picked model name if left
+                    blank. Provide a custom name only if you want
+                    something other than the default.
+                  pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
+                  default: ""
 
   # =======================================================================
-  # Steps. Each conditional on `kind`.
+  # Steps.
   # =======================================================================
   steps:
-    # ------- common gitops-skeleton fetch + publish -------
+    # ------- web-research-agent path -------
     - id: fetch-web-research
       name: Fetch Web-Research Skeleton
       if: ${{ parameters.kind === "web-research-agent" }}
@@ -343,13 +343,41 @@ spec:
           argoNS: openshift-gitops
           argoProject: default
 
-    # Resolve the EntityPicker entity reference (e.g.
-    # "resource:default/ibm-granite-granite-4-1-8b-main") to the
-    # concrete model URI annotation. The operator's BackstageCatalogHandler
-    # stores the URI in `metadata.annotations.agentoffice.ai/model-uri`
-    # — that's what the trainer wants (HF id or oci://...).
+    - id: publish-gitops-web-research
+      name: Publish GitOps (web-research)
+      if: ${{ parameters.kind === "web-research-agent" }}
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-research-agent-gitops
+        sourcePath: gitops
+        defaultBranch: main
+        repoVisibility: public
+        gitAuthorName: Dean Peterson
+        gitAuthorEmail: deanpeterson@users.noreply.github.com
+        description: "GitOps manifests for Karpathy research agent: ${{ parameters.displayName }}"
+
+    - id: argocd-register-web-research
+      name: Register in ArgoCD (web-research)
+      if: ${{ parameters.kind === "web-research-agent" }}
+      action: argocd:create-resources
+      input:
+        appName: ${{ parameters.name }}-research-agent
+        argoInstance: default
+        namespace: ${{ parameters.namespace }}
+        repoUrl: ${{ steps['publish-gitops-web-research'].output.remoteUrl }}
+        path: overlays/development
+
+    - id: catalog-register-web-research
+      name: Register in Catalog (web-research)
+      if: ${{ parameters.kind === "web-research-agent" }}
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitops-web-research'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+    # ------- autoresearch-project path -------
     - id: resolve-base-model
-      name: Resolve Base Model URI from Model Registry
+      name: Resolve Base Model from Registry
       if: ${{ parameters.kind === "autoresearch-project" and parameters.baseModel and parameters.baseModel.length > 0 }}
       action: catalog:fetch
       input:
@@ -363,16 +391,18 @@ spec:
         url: ./skeleton-autoresearch
         targetPath: gitops
         values:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
+          # Project name: user override > sanitized(registeredModel-modelVersion) > fallback
+          name: ${{ parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project') | replace('/', '-') | replace('.', '-') | lower }}
+          # Display name: from picked entity title; falls back to the entity name; falls back to a generic.
+          displayName: ${{ 'AutoResearch: ' + (steps['resolve-base-model'].output.entity.metadata.title if steps['resolve-base-model'].output and steps['resolve-base-model'].output.entity.metadata.title else (parameters.baseModelCustomURI if parameters.baseModelCustomURI else 'Karpathy Loop')) }}
+          # Description: derived; no human typing.
+          description: ${{ 'Karpathy-style autoresearch loop fine-tuning ' + (parameters.baseModelCustomURI if parameters.baseModelCustomURI else steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri']) + ' on ' + parameters.dataset + '.' }}
           emoji: ${{ parameters.emoji }}
           namespace: ${{ parameters.namespace }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          # baseModel resolution: customURI wins if set; otherwise use
-          # the URI annotation from the picked Resource entity; final
-          # fallback to a sensible HF default.
-          baseModel: ${{ parameters.baseModelCustomURI if parameters.baseModelCustomURI else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri'] if steps['resolve-base-model'].output else 'ibm-granite/granite-4.1-8b') }}
+          # baseModel resolution: customURI wins, else picked entity URI (huggingface://... stripped), else granite default.
+          baseModel: ${{ parameters.baseModelCustomURI if parameters.baseModelCustomURI else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri'] | replace('huggingface://', '') if steps['resolve-base-model'].output else 'ibm-granite/granite-4.1-8b') }}
           baseModelRevision: ${{ parameters.baseModelRevision }}
           dataset: ${{ parameters.dataset }}
           trainingSplit: ${{ parameters.trainingSplit }}
@@ -389,95 +419,59 @@ spec:
           quayNamespace: ${{ parameters.quayNamespace }}
           modelRegistryInstance: ${{ parameters.modelRegistryInstance }}
           experimenterPromptExtra: ${{ parameters.experimenterPromptExtra }}
-          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-wiki
-          gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-autoresearch-gitops
+          # URL templates (depend on the derived name).
+          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
+          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
+          gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
           defaultBranch: main
           argoNS: openshift-gitops
           argoProject: default
 
-    # ------- (autoresearch only) publish the WIKI repo first, using user's PAT -------
-    # This is the form-time validation: if the PAT doesn't have
-    # "Contents: Read and write" on the new repo, publish:github
-    # fails loudly here with the actual GitHub API error, BEFORE
-    # anything lands on the cluster.
+    # Publish the wiki repo first — bad-scope PAT fails LOUD here.
     - id: publish-wiki
-      name: Publish Wiki Repository (autoresearch only)
+      name: Publish Wiki Repository
       if: ${{ parameters.kind === "autoresearch-project" }}
       action: publish:github
       input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-wiki
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
         sourcePath: gitops/wiki-seed
         defaultBranch: main
         repoVisibility: private
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: "Autoresearch wiki for ${{ parameters.displayName }} — agent-written proposals + results."
+        description: Autoresearch wiki — agent-written proposals + results.
         token: ${{ secrets.wikiGitToken }}
-
-    # ------- common gitops publish -------
-    - id: publish-gitops-web-research
-      name: Publish GitOps (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
-      action: publish:github
-      input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-research-agent-gitops
-        sourcePath: gitops
-        defaultBranch: main
-        repoVisibility: public
-        gitAuthorName: Dean Peterson
-        gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: "GitOps manifests for Karpathy research agent: ${{ parameters.displayName }}"
 
     - id: publish-gitops-autoresearch
       name: Publish GitOps (autoresearch-project)
       if: ${{ parameters.kind === "autoresearch-project" }}
       action: publish:github
       input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-autoresearch-gitops
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
         sourcePath: gitops/gitops
         defaultBranch: main
         repoVisibility: public
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: "GitOps manifests for autoresearch project: ${{ parameters.displayName }}"
+        description: GitOps manifests for autoresearch project.
 
     - id: wait-repo
       name: Wait for Repository
+      if: ${{ parameters.kind === "autoresearch-project" }}
       action: debug:wait
       input:
         seconds: 3
-
-    # ------- ArgoCD registration (kind-specific app names + paths) -------
-    - id: argocd-register-web-research
-      name: Register in ArgoCD (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
-      action: argocd:create-resources
-      input:
-        appName: ${{ parameters.name }}-research-agent
-        argoInstance: default
-        namespace: ${{ parameters.namespace }}
-        repoUrl: ${{ steps['publish-gitops-web-research'].output.remoteUrl }}
-        path: overlays/development
 
     - id: argocd-register-autoresearch
       name: Register in ArgoCD (autoresearch-project)
       if: ${{ parameters.kind === "autoresearch-project" }}
       action: argocd:create-resources
       input:
-        appName: ${{ parameters.name }}-autoresearch
+        appName: ${{ (parameters.nameOverride if parameters.nameOverride else (steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch' if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
         argoInstance: default
         namespace: ${{ parameters.namespace }}
         repoUrl: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
         path: overlays/development
-
-    # ------- Backstage catalog registration -------
-    - id: catalog-register-web-research
-      name: Register in Catalog (web-research)
-      if: ${{ parameters.kind === "web-research-agent" }}
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps['publish-gitops-web-research'].output.repoContentsUrl }}
-        catalogInfoPath: /catalog-info.yaml
 
     - id: catalog-register-autoresearch
       name: Register in Catalog (autoresearch-project)
@@ -495,7 +489,7 @@ spec:
       - title: GitOps Repository (autoresearch)
         url: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
         if: ${{ parameters.kind === "autoresearch-project" }}
-      - title: Wiki Repository (autoresearch)
+      - title: Wiki Repository
         url: ${{ steps['publish-wiki'].output.remoteUrl }}
         if: ${{ parameters.kind === "autoresearch-project" }}
       - title: Open in Catalog
