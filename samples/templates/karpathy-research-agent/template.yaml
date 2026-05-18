@@ -129,11 +129,26 @@ spec:
             # ============= LLM Auto-Research Agent =============
             - required:
                 - baseModel
+                - version
                 - owner
                 - wikiGitToken
               properties:
                 kind:
                   const: llm-auto-research-agent
+                version:
+                  title: Variant Version
+                  type: string
+                  description: >-
+                    Used to make the project + repo names unique
+                    across iterations on the same base model. Bump
+                    this when you start a new variant (v1, v2, v3,
+                    ...). The full project name becomes
+                    `<sanitized-model>-autoresearch-<version>`, so
+                    "ibm-granite/granite-4.1-8b" + "v2" produces
+                    "ibm-granite-granite-4-1-8b-autoresearch-v2".
+                  pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]?$"
+                  default: v1
+                  maxLength: 16
                 baseModel:
                   title: Base Model (from Model Registry)
                   type: string
@@ -345,8 +360,8 @@ spec:
         url: ./skeleton-autoresearch
         targetPath: gitops
         values:
-          name: ${{ parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project') | replace('/', '-') | replace('.', '-') | lower }}
-          displayName: ${{ ('AutoResearch ' + steps['resolve-base-model'].output.entity.metadata.title) if (steps['resolve-base-model'].output and steps['resolve-base-model'].output.entity.metadata.title) else (('AutoResearch ' + parameters.baseModelCustomURI) if parameters.baseModelCustomURI else 'AutoResearch Project') }}
+          name: ${{ parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version)) | replace('/', '-') | replace('.', '-') | lower }}
+          displayName: ${{ (('AutoResearch ' + steps['resolve-base-model'].output.entity.metadata.title + ' ' + parameters.version) if (steps['resolve-base-model'].output and steps['resolve-base-model'].output.entity.metadata.title) else (('AutoResearch ' + parameters.baseModelCustomURI + ' ' + parameters.version) if parameters.baseModelCustomURI else ('AutoResearch Project ' + parameters.version))) }}
           description: ${{ 'Karpathy autoresearch loop fine-tuning ' + (parameters.baseModelCustomURI if parameters.baseModelCustomURI else steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri']) + ' on ' + parameters.dataset }}
           emoji: ${{ parameters.emoji }}
           namespace: ${{ parameters.namespace }}
@@ -369,9 +384,9 @@ spec:
           quayNamespace: ${{ parameters.quayNamespace }}
           modelRegistryInstance: ${{ parameters.modelRegistryInstance }}
           experimenterPromptExtra: ${{ parameters.experimenterPromptExtra }}
-          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
-          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
-          gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
+          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
+          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-wiki
+          gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
           defaultBranch: main
           argoNS: openshift-gitops
           argoProject: default
@@ -381,7 +396,7 @@ spec:
       if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: publish:github
       input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-wiki
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-wiki
         sourcePath: gitops/wiki-seed
         defaultBranch: main
         repoVisibility: private
@@ -395,7 +410,7 @@ spec:
       if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: publish:github
       input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
         sourcePath: gitops/gitops
         defaultBranch: main
         repoVisibility: public
@@ -408,7 +423,7 @@ spec:
       if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: argocd:create-resources
       input:
-        appName: ${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch') if steps['resolve-base-model'].output else 'autoresearch-project')) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
+        appName: ${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
         argoInstance: default
         namespace: ${{ parameters.namespace }}
         repoUrl: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
