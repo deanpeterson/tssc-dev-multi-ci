@@ -156,14 +156,26 @@ spec:
                     Live dropdown of every model from the cluster's
                     Model Registry and Model Catalog. Each entry is
                     prefixed [Registry] or [Catalog] so you can tell
-                    the source at a glance. To filter to one source,
-                    type "[Registry]" or "[Catalog]" in the picker's
-                    search box.
-                  ui:field: EntityPicker
+                    the source at a glance. Use the filter icon to
+                    narrow the list to one source.
+                  # SourceFilteredEntityPicker is provided by the
+                  # agent-office-backstage-plugin-source-filtered-
+                  # entity-picker RHDH dynamic plugin. It wraps the
+                  # stock EntityPicker with a filter-icon popover
+                  # that toggles entities by the source annotation
+                  # (`agentoffice.ai/model-source`) the operator
+                  # writes on every entity.
+                  ui:field: SourceFilteredEntityPicker
                   ui:options:
                     catalogFilter:
                       kind: Resource
                       spec.type: ml-model
+                    # Human-readable labels for the popover rows.
+                    # Sources we don't list here fall through to the
+                    # raw annotation value.
+                    sourceLabels:
+                      model-registry: "Model Registry"
+                      model-catalog: "Model Catalog"
                 baseModelCustomURI:
                   title: Custom URI Override (optional)
                   type: string
