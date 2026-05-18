@@ -45,14 +45,14 @@ spec:
           ui:widget: radio
 
     # =====================================================================
-    # PAGE 2 (KB CREATOR MODE) — Identity + Topic + Routing + Wiki PAT
-    # all on one page. Conditional via dependencies.kind discriminator.
+    # PAGE 2 — All fields for the chosen kind, on ONE page (no empty
+    # pages, regardless of which mode is selected).
     # =====================================================================
-    - title: Knowledge Base Creator
+    - title: Configuration
       dependencies:
         kind:
           oneOf:
-            # Branch 1: KB Creator mode — all fields combined under ONE properties block.
+            # ============= LLM Knowledge Base Creator =============
             - required:
                 - name
                 - topic
@@ -126,29 +126,16 @@ spec:
                   title: Discord Channel URL (optional)
                   type: string
                   default: https://discord.com/channels/@me
-            # Branch 2: auto-research mode — empty here; its own pages below.
-            - properties:
-                kind:
-                  const: llm-auto-research-agent
-
-    # =====================================================================
-    # PAGE 2 (AUTO-RESEARCH MODE) — Base Model FIRST.
-    # =====================================================================
-    - title: Base Model (from Model Registry)
-      dependencies:
-        kind:
-          oneOf:
-            - properties:
-                kind:
-                  const: llm-knowledge-base-creator
+            # ============= LLM Auto-Research Agent =============
             - required:
                 - baseModel
                 - owner
+                - wikiGitToken
               properties:
                 kind:
                   const: llm-auto-research-agent
                 baseModel:
-                  title: Base Model
+                  title: Base Model (from Model Registry)
                   type: string
                   description: >-
                     Live dropdown — fed by the operator's
@@ -178,20 +165,6 @@ spec:
                       kind:
                         - Group
                         - User
-
-    # =====================================================================
-    # PAGE 3 (AUTO-RESEARCH MODE) — Training (defaults).
-    # =====================================================================
-    - title: Training (defaults — click through if unsure)
-      dependencies:
-        kind:
-          oneOf:
-            - properties:
-                kind:
-                  const: llm-knowledge-base-creator
-            - properties:
-                kind:
-                  const: llm-auto-research-agent
                 dataset:
                   title: Training Dataset (Hugging Face)
                   type: string
@@ -229,22 +202,6 @@ spec:
                   title: Start in validation mode (10-step smoke tests)
                   type: boolean
                   default: false
-
-    # =====================================================================
-    # PAGE 4 (AUTO-RESEARCH MODE) — Wiki + Persistence.
-    # =====================================================================
-    - title: Wiki & Persistence
-      dependencies:
-        kind:
-          oneOf:
-            - properties:
-                kind:
-                  const: llm-knowledge-base-creator
-            - required:
-                - wikiGitToken
-              properties:
-                kind:
-                  const: llm-auto-research-agent
                 wikiGitToken:
                   title: GitHub PAT for the new wiki repo
                   type: string
@@ -296,7 +253,8 @@ spec:
                   default: ""
 
   # =======================================================================
-  # STEPS
+  # STEPS (unchanged from previous version — both modes' paths stay
+  # exactly as before)
   # =======================================================================
   steps:
     # ------- LLM Knowledge Base Creator path -------
