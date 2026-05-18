@@ -149,21 +149,21 @@ spec:
                   pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]?$"
                   default: v1
                   maxLength: 16
-                modelSource:
-                  title: Model Source
+                baseModel:
+                  title: Base Model
                   type: string
                   description: >-
-                    Filter the Base Model dropdown below. "Both" shows
-                    every model — each entry is prefixed [Registry] or
-                    [Catalog] in the list so you can tell which source
-                    it came from. Pick "Registry only" or "Catalog only"
-                    to narrow the dropdown to one source.
-                  enum: [both, registry, catalog]
-                  enumNames:
-                    - "Both (Registry + Catalog)"
-                    - "Registry only"
-                    - "Catalog only"
-                  default: both
+                    Live dropdown of every model from the cluster's
+                    Model Registry and Model Catalog. Each entry is
+                    prefixed [Registry] or [Catalog] so you can tell
+                    the source at a glance. To filter to one source,
+                    type "[Registry]" or "[Catalog]" in the picker's
+                    search box.
+                  ui:field: EntityPicker
+                  ui:options:
+                    catalogFilter:
+                      kind: Resource
+                      spec.type: ml-model
                 baseModelCustomURI:
                   title: Custom URI Override (optional)
                   type: string
@@ -268,64 +268,6 @@ spec:
                   type: string
                   pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
                   default: ""
-              # ---- nested dependencies: modelSource picks the
-              # EntityPicker's catalogFilter for baseModel.
-              # Each modelSource value re-renders the form with a
-              # baseModel that filters by the matching source tag
-              # (Registry entries carry tag `model-registry`, Catalog
-              # entries carry `model-catalog`; both are emitted by the
-              # operator's BackstageCatalogHandler in v0.0.59+).
-              dependencies:
-                modelSource:
-                  oneOf:
-                    - properties:
-                        modelSource:
-                          const: both
-                        baseModel:
-                          title: Base Model
-                          type: string
-                          description: >-
-                            Live dropdown of every model. Each entry is
-                            prefixed [Registry] or [Catalog] so you can
-                            tell the source at a glance. Tip — type the
-                            prefix in the search box for live filtering.
-                          ui:field: EntityPicker
-                          ui:options:
-                            catalogFilter:
-                              kind: Resource
-                              spec.type: ml-model
-                    - properties:
-                        modelSource:
-                          const: registry
-                        baseModel:
-                          title: Base Model (Registry only)
-                          type: string
-                          description: >-
-                            Dropdown narrowed to ModelRegistry entries.
-                            Add models via the RHOAI Dashboard → Model
-                            Registry.
-                          ui:field: EntityPicker
-                          ui:options:
-                            catalogFilter:
-                              kind: Resource
-                              spec.type: ml-model
-                              metadata.tags: model-registry
-                    - properties:
-                        modelSource:
-                          const: catalog
-                        baseModel:
-                          title: Base Model (Catalog only)
-                          type: string
-                          description: >-
-                            Dropdown narrowed to the Red Hat-curated
-                            Model Catalog (granite variants, code models,
-                            validated third-party models).
-                          ui:field: EntityPicker
-                          ui:options:
-                            catalogFilter:
-                              kind: Resource
-                              spec.type: ml-model
-                              metadata.tags: model-catalog
 
   # =======================================================================
   # STEPS (unchanged from previous version — both modes' paths stay
