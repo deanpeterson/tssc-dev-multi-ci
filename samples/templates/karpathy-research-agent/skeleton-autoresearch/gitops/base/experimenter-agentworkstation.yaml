@@ -16,6 +16,17 @@ spec:
     AutoResearchProject. Reads the wiki log, reasons about what to
     try next, and proposes QLoRA hyperparameter configurations as
     strict JSON for the operator to consume.
+  # `provider: openai-codex` tells the operator to mount the
+  # cluster-managed Secret `codex-subscription-credentials` (in
+  # the agent-office namespace) into this agent's gateway pod at
+  # ~/.codex/auth.json. The Secret itself is materialized by an
+  # ExternalSecret in agent-office/cluster/secrets/, which pulls
+  # the auth.json blob from Vault at
+  # `agent-office/codex-subscription-credentials`. To rotate the
+  # token, run the codex-reauth Backstage scaffolder template
+  # (writes to that Vault path); ESO syncs the new value into the
+  # K8s Secret within ~60s and every Codex-backed agent picks it
+  # up on the next kubelet refresh (another ~60s).
   model:
     provider: openai-codex
     modelName: gpt-5.5

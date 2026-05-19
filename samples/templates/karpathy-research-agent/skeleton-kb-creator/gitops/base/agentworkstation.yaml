@@ -46,10 +46,16 @@ spec:
     ${{ values.extraDirective | replace('\n', '\n    ') }}
 {%- endif %}
   model:
-    # ChatGPT Pro / Codex subscription via OAuth — proven to work
-    # against the research-gateway with codex-subscription-credentials
-    # mounted at ~/.codex/auth.json. Subscription tier, not the
-    # rate-limited pay-per-request OpenAI API.
+    # ChatGPT Pro / Codex subscription via OAuth. The K8s Secret
+    # codex-subscription-credentials (in agent-office ns) is mounted
+    # on the research-gateway pod at ~/.codex/auth.json. As of the
+    # Vault rollout, that Secret is no longer hand-applied — it's
+    # materialized by an ExternalSecret in agent-office/cluster/
+    # secrets/ that pulls from Vault path
+    # `agent-office/codex-subscription-credentials`. To rotate the
+    # token, run the `codex-reauth` Backstage scaffolder template
+    # (it writes the new auth.json back to that Vault path); ESO
+    # syncs into the K8s Secret within ~60s.
     provider: openai-codex
     modelName: gpt-5.5
   tools:
