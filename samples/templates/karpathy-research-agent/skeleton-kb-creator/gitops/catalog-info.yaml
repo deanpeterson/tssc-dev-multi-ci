@@ -12,6 +12,10 @@ metadata:
   annotations:
     argocd/app-name: ${{ values.name }}-research-agent
     backstage.io/kubernetes-id: ${{ values.name }}
+    # Discriminator used by the codex-reauth-ui CodexAuthCard
+    # mountPoint filter so the auth-status card only surfaces on
+    # agent component pages (not every Component the cluster has).
+    agentoffice.ai/agent-kind: research
   tags:
     - ai
     - agent
