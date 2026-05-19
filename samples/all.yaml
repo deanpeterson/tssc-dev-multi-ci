@@ -5,13 +5,12 @@ metadata:
   description: Agent Office software templates (OpenClaw + research agents)
 spec:
   targets:
-    - ./templates/dotnet/template.yaml
-    - ./templates/generic-import-from-repo/template.yaml
-    - ./templates/go/template.yaml
-    - ./templates/java-quarkus/template.yaml
-    - ./templates/java-springboot/template.yaml
-    - ./templates/nodejs/template.yaml
-    - ./templates/python/template.yaml
-    - ./templates/openclaw-agent/template.yaml
-    - ./templates/karpathy-research-agent/template.yaml
-    - ./templates/codex-reauth/template.yaml
+  - ./templates/dotnet/template.yaml
+  - ./templates/generic-import-from-repo/template.yaml
+  - ./templates/go/template.yaml
+  - ./templates/java-quarkus/template.yaml
+  - ./templates/java-springboot/template.yaml
+  - ./templates/nodejs/template.yaml
+  - ./templates/python/template.yaml
+  - ./templates/openclaw-agent/template.yaml
+  - ./templates/karpathy-research-agent/template.yaml
