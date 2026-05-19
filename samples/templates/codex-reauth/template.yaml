@@ -1,0 +1,84 @@
+# Re-authenticate the cluster's OpenAI Codex subscription.
+#
+# Behavior:
+#   1. The user submits the form.
+#   2. The codex:reauth scaffolder action starts an OAuth device-code
+#      flow against OpenAI Codex and prints a URL + 8-char user code
+#      to the template's live log.
+#   3. The user visits the URL on any browser, signs in to ChatGPT,
+#      pastes the code, and clicks "Authorize".
+#   4. The action receives the new tokens, packs them into an
+#      auth.json file in the same shape `codex login` writes, and
+#      writes that to Vault path
+#      agent-office/codex-subscription-credentials using KV v2 CAS
+#      (compare-and-set, so a concurrent auto-refresh CronJob can't
+#      stomp the user's update).
+#   5. ESO sees the new Vault version within ~60s, updates the
+#      same-named K8s Secret in agent-office namespace, and every
+#      Codex-backed agent pod picks up the new token on the next
+#      kubelet refresh (another ~60s).
+#
+# No gitops PR. No restart. No `oc create secret`. The K8s Secret
+# is owned by an ExternalSecret CR and ESO is the only writer.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: codex-reauth
+  title: Re-authenticate Codex Subscription
+  description: >-
+    Refresh the ChatGPT/Codex OAuth token stored in Vault. Every
+    Codex-backed agent picks up the new token within ~2 minutes.
+    Run this when an agent reports "OAuth token refresh failed"
+    in its log, or proactively when you know the token's been
+    invalidated (e.g., a ChatGPT-side logout).
+  tags:
+    - agent-office
+    - credentials
+    - codex
+spec:
+  owner: user:default/deanpeterson
+  type: service
+
+  parameters:
+    - title: Re-auth target
+      properties:
+        vaultPath:
+          title: Vault Path
+          type: string
+          description: >-
+            KV v2 path the new auth.json gets written to. The default
+            is the cluster-wide Codex path that ESO syncs into the
+            agent-office namespace. Only change this if you've stood
+            up a per-team/per-env Codex tenancy.
+          default: agent-office/codex-subscription-credentials
+        timeoutMinutes:
+          title: OAuth timeout (minutes)
+          type: integer
+          description: >-
+            How long the action waits for you to complete the device
+            flow before giving up. 10 minutes is plenty if you're
+            paying attention to the log.
+          default: 10
+          minimum: 2
+          maximum: 30
+
+  steps:
+    - id: reauth
+      name: Open Codex device-code page + write to Vault
+      action: codex:reauth
+      input:
+        vaultPath: ${{ parameters.vaultPath }}
+        timeoutMinutes: ${{ parameters.timeoutMinutes }}
+
+  output:
+    text:
+      - title: New Vault version
+        content: |
+          The new auth.json was written to **${{ parameters.vaultPath }}**
+          as version **${{ steps.reauth.output.vaultVersion }}**.
+
+          ChatGPT account_id captured: `${{ steps.reauth.output.accountId }}`
+
+          Every Codex-backed agent on the cluster will pick up the new
+          token within ~2 minutes (60s ESO refresh + 60s kubelet
+          mounted-secret refresh).
