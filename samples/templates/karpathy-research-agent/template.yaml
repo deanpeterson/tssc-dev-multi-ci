@@ -261,6 +261,32 @@ spec:
                   title: OpenShift Namespace
                   type: string
                   default: agent-office
+                runtimeMode:
+                  title: Experimenter Runtime
+                  type: string
+                  description: >-
+                    "dedicated" (default) — the experimenter gets its
+                    own openclaw Pod with its own browser profile.
+                    Recommended for autoresearch: isolated state, no
+                    contention with other agents, easier to debug.
+                    "shared" — the experimenter slots into an existing
+                    AgentGateway pod (e.g., research-gateway) and
+                    shares its node-host browser. Pick this only if
+                    you need the same Discord/Slack/IRC channels the
+                    gateway already owns.
+                  enum: [dedicated, shared]
+                  enumNames:
+                    - "Dedicated — own openclaw Pod (recommended)"
+                    - "Shared — slot into an existing AgentGateway"
+                  default: dedicated
+                gatewayRef:
+                  title: Shared Gateway Name
+                  type: string
+                  description: >-
+                    Only used when Runtime = "shared". The
+                    AgentGateway in the same namespace whose pod will
+                    host this experimenter as a logical openclaw agent.
+                  default: research-gateway
                 ghOwner:
                   title: GitHub Owner
                   type: string
@@ -388,6 +414,8 @@ spec:
           quayNamespace: ${{ parameters.quayNamespace }}
           modelRegistryInstance: ${{ parameters.modelRegistryInstance }}
           experimenterPromptExtra: ${{ parameters.experimenterPromptExtra }}
+          runtimeMode: ${{ parameters.runtimeMode }}
+          gatewayRef: ${{ parameters.gatewayRef }}
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
           wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-wiki
           gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops

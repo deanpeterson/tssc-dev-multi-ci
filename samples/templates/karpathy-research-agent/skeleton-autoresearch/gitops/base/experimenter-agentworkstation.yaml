@@ -18,22 +18,29 @@ spec:
     strict JSON for the operator to consume.
   # `provider: openai-codex` tells the operator to mount the
   # cluster-managed Secret `codex-subscription-credentials` (in
-  # the agent-office namespace) into this agent's gateway pod at
-  # ~/.codex/auth.json. The Secret itself is materialized by an
-  # ExternalSecret in agent-office/cluster/secrets/, which pulls
-  # the auth.json blob from Vault at
-  # `agent-office/codex-subscription-credentials`. To rotate the
-  # token, run the codex-reauth Backstage scaffolder template
-  # (writes to that Vault path); ESO syncs the new value into the
-  # K8s Secret within ~60s and every Codex-backed agent picks it
-  # up on the next kubelet refresh (another ~60s).
+  # the agent's namespace) at ~/.codex/auth.json. The Secret
+  # itself is materialized by an ExternalSecret in agent-office/
+  # cluster/secrets/, which pulls the auth.json blob from Vault.
+  # The codex-reauth Backstage scaffolder template rotates the
+  # token by writing back to Vault; ESO + kubelet pick up the new
+  # value within ~2 minutes.
   model:
     provider: openai-codex
     modelName: gpt-5.5
+  # Runtime is picked at template time. Default (dedicated) gives
+  # this experimenter its own openclaw Pod — recommended for
+  # autoresearch so each project has isolated browser profile +
+  # process state. Opt into `shared` only when you need the same
+  # node-host browser / Discord channels as an existing gateway.
+{%- if values.runtimeMode == "shared" %}
   runtime:
     shared:
       browserProfile: ${{ values.name }}-experimenter
-      gatewayRef: research-gateway
+      gatewayRef: ${{ values.gatewayRef }}
+{%- else %}
+  runtime:
+    dedicated: {}
+{%- endif %}
   tools:
     allow:
       - memory
