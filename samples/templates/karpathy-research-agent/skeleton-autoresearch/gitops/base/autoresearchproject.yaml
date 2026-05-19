@@ -33,6 +33,16 @@ spec:
 
   knowledgeBase: ${{ values.name }}-wiki
 
+  # pipelineRef is required by the CRD: it tells the operator
+  # which Tekton/DSP pipeline to launch for each training round.
+  # The operator pre-creates `autoresearch-qlora-train-eval` in the
+  # `agent-office` namespace during install (see
+  # cluster/operator/pipeline.yaml in agent-office gitops). Override
+  # if you've forked the pipeline.
+  pipelineRef:
+    name: autoresearch-qlora-train-eval
+    namespace: agent-office
+
 {%- if values.modelRegistryInstance %}
   adapterStorage:
     modelRegistry:
