@@ -321,7 +321,7 @@ spec:
           discordChannelUrl: ${{ parameters.discordChannelUrl }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          wikiGitToken: ${{ secrets.wikiGitToken }}
+          wikiGitToken: ${{ parameters.wikiGitToken }}
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-kb-gitops
           wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-wiki
           defaultBranch: main
@@ -340,7 +340,7 @@ spec:
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
         description: Knowledge base — agent-curated findings.
-        token: ${{ secrets.wikiGitToken }}
+        token: ${{ parameters.wikiGitToken }}
 
     - id: publish-gitops-kb
       name: Publish GitOps (KB-Creator)
@@ -408,7 +408,7 @@ spec:
           maxConcurrentRuns: ${{ parameters.maxConcurrentRuns }}
           maxTotalExperiments: ${{ parameters.maxTotalExperiments }}
           validationMode: ${{ parameters.validationMode }}
-          wikiGitToken: ${{ secrets.wikiGitToken }}
+          wikiGitToken: ${{ parameters.wikiGitToken }}
           quayRobotUsername: ${{ parameters.quayRobotUsername }}
           quayRobotPassword: ${{ secrets.quayRobotPassword }}
           quayNamespace: ${{ parameters.quayNamespace }}
@@ -435,7 +435,7 @@ spec:
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
         description: Autoresearch experiment wiki.
-        token: ${{ secrets.wikiGitToken }}
+        token: ${{ parameters.wikiGitToken }}
 
     - id: publish-gitops-autoresearch
       name: Publish GitOps (Auto-Research)
