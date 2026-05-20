@@ -4,7 +4,6 @@ resources:
   - autoresearchproject.yaml
   - knowledgebase.yaml
   - experimenter-agentworkstation.yaml
-  - wiki-git-token-secret.yaml
 {%- if values.quayRobotUsername and values.quayRobotPassword %}
   - quay-push-secret.yaml
 {%- endif %}

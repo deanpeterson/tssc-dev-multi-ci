@@ -9,4 +9,3 @@ commonLabels:
 resources:
   - agentworkstation.yaml
   - knowledgebase.yaml
-  - wiki-git-token-secret.yaml

@@ -57,7 +57,6 @@ spec:
                 - name
                 - topic
                 - owner
-                - wikiGitToken
               properties:
                 kind:
                   const: llm-knowledge-base-creator
@@ -114,14 +113,6 @@ spec:
                   title: GitHub Owner
                   type: string
                   default: enterprisewebservice
-                wikiGitToken:
-                  title: GitHub PAT for the new wiki repo
-                  type: string
-                  description: >-
-                    Fine-grained PAT with "Contents Read and write"
-                    on the new wiki repo. Validated at step time via
-                    publish:github — bad scope fails loud here.
-                  ui:widget: password
                 discordChannelUrl:
                   title: Discord Channel URL (optional)
                   type: string
@@ -131,7 +122,6 @@ spec:
                 - baseModel
                 - version
                 - owner
-                - wikiGitToken
               properties:
                 kind:
                   const: llm-auto-research-agent
@@ -221,14 +211,6 @@ spec:
                   title: Start in validation mode (10-step smoke tests)
                   type: boolean
                   default: false
-                wikiGitToken:
-                  title: GitHub PAT for the new wiki repo
-                  type: string
-                  description: >-
-                    Fine-grained PAT with "Contents Read and write"
-                    on the new project-wiki repo. Validated at step
-                    time via publish:github.
-                  ui:widget: password
                 quayRobotUsername:
                   title: Quay Robot Username (optional)
                   type: string
@@ -321,7 +303,6 @@ spec:
           discordChannelUrl: ${{ parameters.discordChannelUrl }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
-          wikiGitToken: ${{ parameters.wikiGitToken }}
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-kb-gitops
           wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-wiki
           defaultBranch: main
@@ -340,7 +321,6 @@ spec:
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
         description: Knowledge base — agent-curated findings.
-        token: ${{ parameters.wikiGitToken }}
 
     - id: publish-gitops-kb
       name: Publish GitOps (KB-Creator)
@@ -408,7 +388,6 @@ spec:
           maxConcurrentRuns: ${{ parameters.maxConcurrentRuns }}
           maxTotalExperiments: ${{ parameters.maxTotalExperiments }}
           validationMode: ${{ parameters.validationMode }}
-          wikiGitToken: ${{ parameters.wikiGitToken }}
           quayRobotUsername: ${{ parameters.quayRobotUsername }}
           quayRobotPassword: ${{ secrets.quayRobotPassword }}
           quayNamespace: ${{ parameters.quayNamespace }}
@@ -435,7 +414,6 @@ spec:
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
         description: Autoresearch experiment wiki.
-        token: ${{ parameters.wikiGitToken }}
 
     - id: publish-gitops-autoresearch
       name: Publish GitOps (Auto-Research)
