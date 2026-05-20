@@ -4,6 +4,13 @@ resources:
   - autoresearchproject.yaml
   - knowledgebase.yaml
   - experimenter-agentworkstation.yaml
+  # SkillBinding wires the wiki-search / wiki-clip / wiki-write
+  # cluster Skills into the strategist AgentWorkstation. These
+  # are the same skills the KB-creator agent uses; the autoresearch
+  # strategist re-uses them to enrich the per-project wiki with
+  # papers / synthesis articles / canonical concept pages that
+  # feed back into future strategist turns.
+  - strategist-skill-binding.yaml
 {%- if values.quayRobotUsername and values.quayRobotPassword %}
   - quay-push-secret.yaml
 {%- endif %}

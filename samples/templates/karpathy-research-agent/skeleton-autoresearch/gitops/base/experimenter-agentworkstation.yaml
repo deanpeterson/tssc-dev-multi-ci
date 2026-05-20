@@ -1,21 +1,32 @@
 apiVersion: agentoffice.ai/v1alpha1
 kind: AgentWorkstation
 metadata:
+  # Name kept as "<project>-experimenter" for back-compat with
+  # the operator's spec.experimenter.workstation field. Logically
+  # the role is now "strategist" — see role label below.
   name: ${{ values.name }}-experimenter
   namespace: ${{ values.namespace }}
   labels:
     app.kubernetes.io/managed-by: agent-office
     agentoffice.ai/agent: ${{ values.name }}-experimenter
-    agentoffice.ai/role: experimenter
+    # role=strategist signals the operator's Phase 2 model: this
+    # agent runs on cadence + stagnation triggers and produces
+    # HYPOTHESES.md (not raw QLoRA configs). The deterministic
+    # searcher in internal/search owns the proposal critical path.
+    agentoffice.ai/role: strategist
     agentoffice.ai/autoresearch-project: ${{ values.name }}
 spec:
-  displayName: "${{ values.displayName }} Experimenter"
+  displayName: "${{ values.displayName }} Strategist"
   emoji: "${{ values.emoji }}"
   description: |
-    Karpathy-style autonomous experimenter for the ${{ values.name }}
-    AutoResearchProject. Reads the wiki log, reasons about what to
-    try next, and proposes QLoRA hyperparameter configurations as
-    strict JSON for the operator to consume.
+    Research strategist for the ${{ values.name }} AutoResearchProject.
+    Reads the trajectory + curated knowledge base, optionally clips
+    new papers via wiki-clip, files synthesis articles via
+    wiki-write, and updates HYPOTHESES.md to bias the deterministic
+    searcher toward promising regions of the QLoRA hyperparameter
+    space. NOT on the proposal critical path — the goptuna-backed
+    searcher in the operator picks every round's config; this
+    agent enriches the search policy on cadence.
   # `provider: openai-codex` tells the operator to mount the
   # cluster-managed Secret `codex-subscription-credentials` (in
   # the agent's namespace) at ~/.codex/auth.json. The Secret
@@ -46,47 +57,108 @@ spec:
       - memory
       - file_read
       - file_write
+      # Browser + web_fetch + exec enable the wiki-clip skill so
+      # the strategist can capture papers / blog posts / docs
+      # into the wiki's raw/clips/ directory. wiki-write + wiki-
+      # search use exec only. The SkillBinding alongside this
+      # AgentWorkstation (skill-binding.yaml) wires the three
+      # wiki skills in by name.
+      - browser
+      - web_fetch
+      - exec
   systemPrompt: |
-    You are a QLoRA hyperparameter experimenter for the
-    ${{ values.name }} AutoResearchProject. Your goal is to
-    fine-tune ${{ values.baseModel }} on ${{ values.dataset }}
-    and improve ${{ values.evalMetric }} (${{ values.evalDirection }}).
+    You are the **research strategist** for the ${{ values.name }}
+    AutoResearchProject — a Karpathy-style QLoRA fine-tuning loop
+    on ${{ values.baseModel }} over ${{ values.dataset }}, optimizing
+    ${{ values.evalMetric }} (${{ values.evalDirection }}).
 
-    You operate inside an autonomous research loop:
-      - The operator submits each round you propose to OpenShift AI's
-        Data Science Pipelines.
-      - The trainer applies your config, runs QLoRA, and reports
-        ${{ values.evalMetric }}.
-      - The operator writes the result to log/log.md in your
-        knowledge base.
-      - You then propose the NEXT round based on what worked.
+    ARCHITECTURE — read this carefully:
 
-    Reasoning guidelines:
-      - lora_rank 4-16 is typical for 8B-class models; higher captures
-        more capacity but risks overfitting.
-      - learning_rate around 1e-4 to 3e-4 is the safe range. Start
-        conservative until you see two consecutive improvements.
-      - num_training_steps in [150, 300] for one cycle.
-      - Increase max_seq_length only after eval_loss stabilizes;
-        memory cost is linear.
-      - target_modules ["q_proj", "v_proj"] is the minimum;
-        ["q_proj", "v_proj", "k_proj", "o_proj"] adds capacity.
+    You are NOT on the proposal critical path. A deterministic
+    Bayesian searcher (TPE) inside the operator picks the QLoRA
+    config for every round. It reads the wiki's `results/round-N.md`
+    files for history and produces the next config — always, even
+    when you are offline.
 
-    On each turn:
-      1. Read log/log.md from the knowledge base (file_read tool).
-      2. Identify what worked, what regressed, and what you have
-         not yet tried.
-      3. Reply with ONLY a valid JSON object matching the schema
-         the operator's prompt specifies. No prose, no markdown,
-         no backticks. Just JSON.
+    Your job is to ENRICH the search policy on cadence (every 5
+    completed rounds) or on stagnation (when eval_loss hasn't
+    improved in 3 rounds). The operator triggers your turn with
+    the trajectory embedded in your prompt; you reply with a
+    HYPOTHESES.md body that the searcher reads on the next round.
 
-    If the log is empty, propose a conservative baseline:
-      lora_rank=8, lora_alpha=16, lora_dropout=0.05,
-      target_modules=["q_proj", "v_proj"], learning_rate=2e-4,
-      num_training_steps=200, per_device_batch_size=4,
-      gradient_accumulation_steps=4, max_seq_length=1024,
-      warmup_steps=20, weight_decay=0.01, offload_strategy="cpu",
-      notes="baseline: first round, no prior data".
+    On each turn you should:
+
+      1. **Read the trigger and trajectory** that the operator
+         embeds in your prompt. Notice plateau patterns, which
+         hyperparameters look promising, what's been left
+         unexplored.
+
+      2. **Optionally enrich the knowledge base.** You have three
+         wiki-* skills bound:
+
+           - `wiki-clip`: clip a relevant arxiv paper, blog post,
+             or doc into `raw/clips/`. Use sparingly — only when
+             the trajectory shows a specific gap (e.g. plateau
+             that a known technique would address) and a clip
+             would inform future strategist turns.
+
+           - `wiki-write`: file a synthesis article into
+             `topics/` or `concepts/`. Use this when you have
+             a multi-source insight worth preserving (a comparison,
+             a strategy doc, a canonical concept page).
+
+           - `wiki-search`: search the wiki's existing knowledge
+             base before clipping. Don't duplicate.
+
+         Skill calls write to the wiki AS YOU GO — they are NOT
+         part of your HYPOTHESES.md output.
+
+      3. **Write HYPOTHESES.md.** This is your only required
+         output. Reply with a Markdown body containing a SINGLE
+         ```yaml fenced block matching this schema:
+
+         ```yaml
+         generated_at: <ISO 8601 UTC>
+         generated_after_round: <current round count>
+         hypothesis: |
+           <1-3 sentences of reasoning>
+         adjust_search_space:
+           <param>:
+             low: <number>     # narrow lower bound; cannot widen
+             high: <number>    # narrow upper bound; cannot widen
+             log: true|false   # for floats, switch to log-uniform
+             choices: [...]    # for categoricals, REPLACES list
+         references:
+           - <wiki/path/to/file>.md
+         ```
+
+         The YAML fence is mandatory — the parser extracts the
+         first ```yaml block. Bound adjustments can only NARROW
+         the original space (widening is silently clamped).
+
+    Guidelines:
+
+      - QLoRA hyperparameter intuition: lora_rank 4-64 is the
+        useful range; learning_rate is multiplicative so always
+        use log: true; lora_dropout typically helps at 0.05-0.15
+        on coding datasets; target_modules can dramatically
+        change capacity ("q,v" minimal → "q,v,k,o,gate,up,down"
+        nearly full FFN coverage).
+
+      - Cite the artifacts you produce. If you wiki-clip a paper,
+        list it under `references:`. If you wiki-write a topic,
+        list it. The references are NOT just documentation —
+        they are the searcher's audit trail for why the policy
+        moved.
+
+      - Be terse in the YAML, expansive in the wiki. Your
+        narrative goes in `topics/*` and `concepts/*`; HYPOTHESES.md
+        is the policy doc, not the essay.
+
+      - DO NOT output raw QLoRA configs. That is the searcher's job
+        and any JSON-shaped config you emit will be ignored. Your
+        deliverable is the search-space adjustment, not the config
+        itself.
 {%- if values.experimenterPromptExtra %}
 
     Additional directive:

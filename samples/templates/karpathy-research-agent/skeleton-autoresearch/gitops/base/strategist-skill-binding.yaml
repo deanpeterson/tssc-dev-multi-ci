@@ -1,0 +1,63 @@
+# Three SkillBindings wire the wiki-* cluster Skills into the
+# strategist AgentWorkstation. One binding per skill — the
+# operator's SkillBinding API takes `spec.skillRef.name` (singular)
+# but `spec.subjects[]` is a list, so the same binding could grant
+# the skill to multiple agents. Per-skill bindings give us the
+# clearest audit ("who has wiki-clip? `oc get skillbindings -l
+# skill=wiki-clip`").
+#
+# These three Skills are cluster-managed (deployed once at operator
+# install time, shared across every autoresearch project + KB
+# creator) — see agent-office/cluster/skills/. Adding a new skill
+# later means appending a new SkillBinding here.
+
+apiVersion: agentoffice.ai/v1alpha1
+kind: SkillBinding
+metadata:
+  name: ${{ values.name }}-strategist-wiki-search
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/autoresearch-project: ${{ values.name }}
+    agentoffice.ai/role: strategist
+    agentoffice.ai/skill: wiki-search
+spec:
+  skillRef:
+    name: wiki-search
+  subjects:
+    - kind: AgentWorkstation
+      name: ${{ values.name }}-experimenter
+---
+apiVersion: agentoffice.ai/v1alpha1
+kind: SkillBinding
+metadata:
+  name: ${{ values.name }}-strategist-wiki-clip
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/autoresearch-project: ${{ values.name }}
+    agentoffice.ai/role: strategist
+    agentoffice.ai/skill: wiki-clip
+spec:
+  skillRef:
+    name: wiki-clip
+  subjects:
+    - kind: AgentWorkstation
+      name: ${{ values.name }}-experimenter
+---
+apiVersion: agentoffice.ai/v1alpha1
+kind: SkillBinding
+metadata:
+  name: ${{ values.name }}-strategist-wiki-write
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/autoresearch-project: ${{ values.name }}
+    agentoffice.ai/role: strategist
+    agentoffice.ai/skill: wiki-write
+spec:
+  skillRef:
+    name: wiki-write
+  subjects:
+    - kind: AgentWorkstation
+      name: ${{ values.name }}-experimenter
