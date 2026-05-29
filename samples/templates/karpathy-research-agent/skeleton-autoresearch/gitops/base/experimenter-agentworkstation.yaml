@@ -58,6 +58,19 @@ spec:
   runtime:
     dedicated: {}
 {%- endif %}
+{%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
+{%- set mcps = values.compose.mcpServers or [] %}
+{%- if kbrefs | length > 0 %}
+  # Extra reference Knowledge Bases attached via the wizard's
+  # "Compose" page (the AgentComposer binder field). The project's
+  # research wiki KB is wired by the operator separately — these are
+  # ADDITIONAL KBs the strategist reads (mounted + indexed in KBS.md).
+  knowledgeBaseRefs:
+{%- for kb in kbrefs %}
+    - name: ${{ kb.name }}
+      role: ${{ kb.role | default("knowledge-pool", true) }}
+{%- endfor %}
+{%- endif %}
   tools:
     allow:
       - memory
@@ -72,6 +85,24 @@ spec:
       - browser
       - web_fetch
       - exec
+{%- if mcps | length > 0 %}
+    # MCP servers chosen in the wizard's "Compose" page (Tools / MCP
+    # tab). Reachable through the Kuadrant MCP Gateway; the github
+    # preset auths via the ESO-rotated App installation token.
+    mcpServers:
+{%- for s in mcps %}
+      - name: ${{ s.name }}
+        url: ${{ s.url }}
+        type: ${{ s.type | default("http", true) }}
+{%- if s.authHeaderValue %}
+        headers:
+          Authorization: "${{ s.authHeaderValue }}"
+{%- endif %}
+{%- if s.envFromSecret %}
+        envFromSecret: ${{ s.envFromSecret }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
   systemPrompt: |
     You are the **research strategist** for the ${{ values.name }}
     AutoResearchProject — a Karpathy-style QLoRA fine-tuning loop

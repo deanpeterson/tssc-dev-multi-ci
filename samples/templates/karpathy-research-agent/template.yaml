@@ -186,6 +186,31 @@ spec:
           pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
           default: ""
 
+    # ================================================================
+    # PAGE 2 — Compose the experimenter. The SAME binder field
+    # (AgentComposer, binders v0.0.7) used by the OpenClaw template
+    # and the entity-page card. Attach EXTRA reference Knowledge Bases
+    # for the strategist to read, review the skills it auto-discovers,
+    # and wire MCP/tools (e.g. GitHub). The project's research wiki KB
+    # is always created automatically — this is for additional
+    # bindings. Value flows into the experimenter AgentWorkstation:
+    #   compose.knowledgeBaseRefs[] → spec.knowledgeBaseRefs
+    #   compose.mcpServers[]        → spec.tools.mcpServers
+    # (namespace is read from the field on Page 1 of this form.)
+    # ================================================================
+    - title: Compose — Knowledge & Tools (optional)
+      properties:
+        compose:
+          title: Knowledge Bases, Skills & Tools
+          type: object
+          description: >-
+            Attach extra Knowledge Bases for the strategist to read and
+            wire up tools (MCP) — from the live cluster catalog. The
+            project's research wiki is created automatically; this is
+            for additional bindings. Editable later from the
+            experimenter's page.
+          ui:field: AgentComposer
+
   # =======================================================================
   # STEPS — autoresearch only. No more kind branching; every step runs
   # unconditionally. (The KB-creator steps + skeleton-kb-creator are
@@ -211,6 +236,7 @@ spec:
           description: ${{ 'Karpathy autoresearch loop fine-tuning ' + (parameters.baseModelCustomURI if parameters.baseModelCustomURI else steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri']) + ' on ' + parameters.dataset }}
           emoji: ${{ parameters.emoji }}
           namespace: ${{ parameters.namespace }}
+          compose: ${{ parameters.compose }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
           baseModel: ${{ parameters.baseModelCustomURI if parameters.baseModelCustomURI else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/model-uri'] | replace('huggingface://', '')) if steps['resolve-base-model'].output else 'ibm-granite/granite-4.1-8b') }}
