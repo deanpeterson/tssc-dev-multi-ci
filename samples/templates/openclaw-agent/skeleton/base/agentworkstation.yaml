@@ -60,16 +60,19 @@ spec:
       browserProfile: ${{ values.name }}
       gatewayRef: ${{ values.gatewayRef }}
 
-{%- if values.attachKnowledgeBases and values.attachKnowledgeBases | length > 0 or values.createNewKnowledgeBase %}
-  # KnowledgeBases — bound (explicit per agent). The operator mounts
-  # each at /home/node/.openclaw/wiki/<name>/ inside the gateway pod
-  # and renders a per-agent KBS.md index listing them. Skills, by
-  # contrast, are discovered from the cluster catalog at runtime
-  # (v1.6.0+) — every agent sees all skills, no per-agent binding.
+{%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
+{%- set mcps = values.compose.mcpServers or [] %}
+{%- if kbrefs | length > 0 or values.createNewKnowledgeBase %}
+  # KnowledgeBases — bound (explicit per agent), chosen in the wizard's
+  # "Compose" page (the AgentComposer binder field). The operator mounts
+  # each at /home/node/.openclaw/wiki/<name>/ inside the gateway pod and
+  # renders a per-agent KBS.md index listing them. Skills, by contrast,
+  # are discovered from the cluster catalog at runtime (v1.6.0+) — every
+  # agent sees all skills, no per-agent binding.
   knowledgeBaseRefs:
-{%- for kb in values.attachKnowledgeBases %}
-    - name: ${{ kb }}
-      role: knowledge-pool
+{%- for kb in kbrefs %}
+    - name: ${{ kb.name }}
+      role: ${{ kb.role | default("knowledge-pool", true) }}
 {%- endfor %}
 {%- if values.createNewKnowledgeBase %}
     - name: ${{ values.name }}-wiki
@@ -77,22 +80,26 @@ spec:
 {%- endif %}
 {%- endif %}
 
-{%- if values.federateGithubMcp or values.discordChannelUrl %}
-  # Optional integrations toggled via the template form.
-{%- endif %}
-{%- if values.federateGithubMcp %}
+{%- if mcps | length > 0 %}
+  # MCP servers — chosen in the wizard's "Compose" page (Tools / MCP
+  # tab of the AgentComposer binder field). Each is reachable through
+  # the Kuadrant MCP Gateway. For the github preset the broker holds
+  # the GitHub App installation token (rotated every 30m via ESO from
+  # Vault), so this agent never sees the credential.
   tools:
     mcpServers:
-      # github MCP federation — 79 GitHub Issues / Projects v2 tools
-      # served through one gateway URL. The broker holds the GitHub
-      # App installation token (rotated every 30m via ESO from Vault);
-      # this agent never sees the credential.
-      - name: github
-        url: http://mcp-gateway-data-science-gateway-class.${{ values.namespace }}.svc.cluster.local/mcp
-        type: http
+{%- for s in mcps %}
+      - name: ${{ s.name }}
+        url: ${{ s.url }}
+        type: ${{ s.type | default("http", true) }}
+{%- if s.authHeaderValue %}
         headers:
-          Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
-        envFromSecret: github-mcp-installation-token
+          Authorization: "${{ s.authHeaderValue }}"
+{%- endif %}
+{%- if s.envFromSecret %}
+        envFromSecret: ${{ s.envFromSecret }}
+{%- endif %}
+{%- endfor %}
 {%- endif %}
 
 {%- if values.discordChannelUrl %}

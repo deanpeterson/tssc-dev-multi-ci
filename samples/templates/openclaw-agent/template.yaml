@@ -145,25 +145,29 @@ spec:
           ui:widget: password
 
     # ================================================================
-    # PAGE 4 — Knowledge Bases. NEW v1.6.0. Knowledge bases are bound
-    # (explicit per agent) — the operator mounts each attached KB into
-    # the agent's gateway pod. Skills, by contrast, are discovered
-    # from the cluster catalog at runtime (every agent sees the full
-    # catalog, no per-agent skill selection here).
+    # PAGE 4 — Compose the agent. NEW in binders v0.0.7. This is the
+    # SAME binder you get on the agent's entity page, embedded right
+    # in the create wizard (ui:field: AgentComposer). It reads the
+    # live cluster catalog so you PICK Knowledge Bases (no typing
+    # names), see the skills the agent will auto-discover, and wire
+    # up MCP/tools (GitHub preset + custom). Its value is an object
+    # consumed by the skeleton's agentworkstation.yaml:
+    #   compose.knowledgeBaseRefs[] → spec.knowledgeBaseRefs
+    #   compose.mcpServers[]        → spec.tools.mcpServers
+    # KBs are bound (explicit per agent); skills are discovered from
+    # the catalog at runtime (no per-agent skill binding).
     # ================================================================
-    - title: Knowledge Bases (optional)
+    - title: Compose — Knowledge, Skills & Tools
       properties:
-        attachKnowledgeBases:
-          title: Attach existing KnowledgeBases
-          type: array
+        compose:
+          title: Knowledge Bases, Skills & Tools
+          type: object
           description: >-
-            KnowledgeBases this agent should mount + read at runtime.
-            Pick from KnowledgeBase entities in the cluster catalog.
-            Common pick for a PM agent — agent-platform-capabilities
-            (the canonical planning-reference wiki).
-          items:
-            type: string
-          uniqueItems: true
+            Attach Knowledge Bases, review the skills this agent will
+            discover, and wire up tools (MCP) — all from the live
+            cluster catalog. Everything here is editable later from the
+            agent's page.
+          ui:field: AgentComposer
         createNewKnowledgeBase:
           title: Also create a NEW knowledge base for this agent to curate
           type: boolean
@@ -172,7 +176,8 @@ spec:
             whose job is to watch a topic and accumulate findings
             into a new wiki). The scaffolder will emit a fresh
             KnowledgeBase CR + git-mirrored wiki repo alongside the
-            agent.
+            agent (added to spec.knowledgeBaseRefs as <name>-wiki,
+            role experiment-history).
           default: false
         newKnowledgeBaseTopic:
           title: New KB — Topic / Description
@@ -180,9 +185,10 @@ spec:
           description: 'Only used when "create new KB" is checked. What is this KB about?'
 
     # ================================================================
-    # PAGE 5 — Channels & Tools. NEW v1.6.0.
+    # PAGE 5 — Channels. Discord binding (MCP/tools now live in the
+    # composer on Page 4).
     # ================================================================
-    - title: Channels & Tools (optional)
+    - title: Channels (optional)
       properties:
         discordChannelUrl:
           title: Discord Channel URL
@@ -191,16 +197,6 @@ spec:
             Optional. If set, the operator binds inbound messages on
             this Discord channel to this agent. Example
             https://discord.com/channels/<guild>/<channel>.
-        federateGithubMcp:
-          title: Federate the GitHub MCP server (79 GitHub Issues / Projects v2 tools)
-          type: boolean
-          description: >-
-            Check for PM-style and developer agents that need to
-            create/manage GitHub Issues and Projects v2 boards. The
-            tool calls go through the Kuadrant MCP Gateway; the
-            broker holds the GitHub App-installation-token so the
-            agent never sees credentials.
-          default: false
 
     # ================================================================
     # PAGE 6 — Deployment. Namespace + gateway + github repo owner.
@@ -250,11 +246,10 @@ spec:
           modelName: ${{ parameters.modelName }}
           routerRef: ${{ parameters.routerRef }}
           apiKey: ${{ parameters.apiKey }}
-          attachKnowledgeBases: ${{ parameters.attachKnowledgeBases }}
+          compose: ${{ parameters.compose }}
           createNewKnowledgeBase: ${{ parameters.createNewKnowledgeBase }}
           newKnowledgeBaseTopic: ${{ parameters.newKnowledgeBaseTopic }}
           discordChannelUrl: ${{ parameters.discordChannelUrl }}
-          federateGithubMcp: ${{ parameters.federateGithubMcp }}
           namespace: ${{ parameters.namespace }}
           gatewayRef: ${{ parameters.gatewayRef }}
           owner: ${{ parameters.owner }}
