@@ -6,6 +6,12 @@ metadata:
   # the role is now "strategist" — see role label below.
   name: ${{ values.name }}-experimenter
   namespace: ${{ values.namespace }}
+  annotations:
+    # v1.6.0: lets the agentworkstation-binders plugin's Save button
+    # open a PR against this manifest when bindings change.
+    agentoffice.ai/gitops-source-repo: ${{ values.ghOwner }}/${{ values.name }}-autoresearch-gitops
+    agentoffice.ai/gitops-source-path: base/experimenter-agentworkstation.yaml
+    agentoffice.ai/gitops-source-branch: ${{ values.defaultBranch }}
   labels:
     app.kubernetes.io/managed-by: agent-office
     agentoffice.ai/agent: ${{ values.name }}-experimenter

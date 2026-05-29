@@ -2,16 +2,19 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: karpathy-research-agent
-  title: Karpathy Agent — Knowledge Base or Auto-Research
+  title: Auto-Research Agent (Karpathy QLoRA loop)
   description: >-
-    Two distinct things you can create from one form. Pick first.
-    LLM Knowledge Base Creator — agent watches a topic, fills a wiki.
-    LLM Auto-Research Agent — Karpathy-style QLoRA fine-tuning loop.
+    Karpathy-style autonomous QLoRA fine-tuning loop. Picks a base
+    model from the cluster's Model Registry / Catalog and runs a
+    deterministic-search + LLM-strategist research flywheel that
+    fine-tunes, evaluates, and keeps/reverts each round. For standard
+    (non-fine-tuning) agents — including LLM knowledge-base curators —
+    use the "OpenClaw Agent" template instead (its
+    "create new knowledge base" toggle covers the KB-creator case).
   tags:
     - ai
     - agent
     - openclaw
-    - knowledge-base
     - autoresearch
     - openshift
     - qlora
@@ -21,350 +24,183 @@ spec:
 
   parameters:
     # =====================================================================
-    # PAGE 1 — Kind picker. First decision: KB or auto-research?
+    # Single configuration page — autoresearch only. The kind picker
+    # is gone (KB-creator moved to the OpenClaw Agent template), so
+    # there's nothing to branch on; all fields live on one flat page.
     # =====================================================================
-    - title: What are you creating?
+    - title: Auto-Research Configuration
       required:
-        - kind
+        - baseModel
+        - version
+        - owner
       properties:
-        kind:
-          title: Kind
+        version:
+          title: Variant Version
           type: string
           description: >-
-            Knowledge Base Creator → an agent that watches a topic on
-            the web and curates a knowledge base wiki.
-            Auto-Research Agent → fine-tunes a model from the cluster's
-            Model Registry in a Karpathy-style QLoRA loop.
-          enum:
-            - llm-knowledge-base-creator
-            - llm-auto-research-agent
+            Used to make the project + repo names unique across
+            iterations on the same base model. Bump this when you start
+            a new variant (v1, v2, v3, ...). The full project name
+            becomes `<sanitized-model>-autoresearch-<version>`, so
+            "ibm-granite/granite-4.1-8b" + "v2" produces
+            "ibm-granite-granite-4-1-8b-autoresearch-v2".
+          pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]?$"
+          default: v1
+          maxLength: 16
+        baseModel:
+          title: Base Model
+          type: string
+          description: >-
+            Live dropdown of every model from the cluster's Model
+            Registry and Model Catalog. Each entry is prefixed
+            [Registry] or [Catalog] so you can tell the source at a
+            glance. Use the filter icon next to the picker to narrow
+            the list to one source.
+          ui:field: SourceFilteredEntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Resource
+              spec.type: ml-model
+            sourceLabels:
+              model-registry: "Model Registry"
+              model-catalog: "Model Catalog"
+        baseModelCustomURI:
+          title: Custom URI Override (optional)
+          type: string
+          description: Free-text override for models NOT yet in the registry.
+          default: ""
+        baseModelRevision:
+          title: Base Model Revision
+          type: string
+          default: main
+        owner:
+          title: Owner
+          type: string
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind:
+                - Group
+                - User
+        dataset:
+          title: Training Dataset (Hugging Face)
+          type: string
+          default: ise-uiuc/Magicoder-OSS-Instruct-75K
+        trainingSplit:
+          title: Training Split
+          type: string
+          default: train
+        trainingSampleCount:
+          title: Training Sample Count Cap
+          type: integer
+          default: 2000
+        evalMetric:
+          title: Eval Metric
+          type: string
+          default: eval_loss
+        evalDirection:
+          title: Eval Direction
+          type: string
+          enum: [minimize, maximize]
+          default: minimize
+        cadenceMinutes:
+          title: Cadence (minutes between rounds)
+          type: integer
+          default: 30
+        maxConcurrentRuns:
+          title: Max Concurrent Runs
+          type: integer
+          default: 1
+        maxTotalExperiments:
+          title: Max Total Experiments
+          type: integer
+          default: 100
+        validationMode:
+          title: Start in validation mode (10-step smoke tests)
+          type: boolean
+          default: false
+        quayRobotUsername:
+          title: Quay Robot Username (optional)
+          type: string
+          default: ""
+        quayRobotPassword:
+          title: Quay Robot Password (optional)
+          type: string
+          ui:widget: password
+          default: ""
+        quayNamespace:
+          title: Quay Namespace
+          type: string
+          default: deanpeterson
+        modelRegistryInstance:
+          title: ModelRegistry Instance
+          type: string
+          default: autoresearch-registry
+        experimenterPromptExtra:
+          title: Experimenter Extra Directive (optional)
+          type: string
+          ui:widget: textarea
+          ui:options:
+            rows: 4
+        emoji:
+          title: Emoji
+          type: string
+          default: "🔬"
+          maxLength: 2
+        namespace:
+          title: OpenShift Namespace
+          type: string
+          default: agent-office
+        runtimeMode:
+          title: Experimenter Runtime
+          type: string
+          description: >-
+            "dedicated" (default) — the experimenter gets its own
+            openclaw Pod with its own browser profile. Recommended for
+            autoresearch: isolated state, no contention with other
+            agents, easier to debug. "shared" — the experimenter slots
+            into an existing AgentGateway pod (e.g., research-gateway)
+            and shares its node-host browser. Pick this only if you
+            need the same Discord/Slack/IRC channels the gateway
+            already owns.
+          enum: [dedicated, shared]
           enumNames:
-            - "LLM Knowledge Base Creator (watches a topic, fills a wiki)"
-            - "LLM Auto-Research Agent (QLoRA fine-tuning loop)"
-          default: llm-knowledge-base-creator
-          ui:widget: radio
-
-    # =====================================================================
-    # PAGE 2 — All fields for the chosen kind, on ONE page (no empty
-    # pages, regardless of which mode is selected).
-    # =====================================================================
-    - title: Configuration
-      dependencies:
-        kind:
-          oneOf:
-            # ============= LLM Knowledge Base Creator =============
-            - required:
-                - name
-                - topic
-                - owner
-              properties:
-                kind:
-                  const: llm-knowledge-base-creator
-                name:
-                  title: Short Name
-                  type: string
-                  description: >-
-                    Lowercase, DNS-safe. Used for the AgentWorkstation
-                    name, the KnowledgeBase name (with "-wiki" suffix),
-                    and the GitHub repo names.
-                  pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-                  maxLength: 63
-                  ui:autofocus: true
-                displayName:
-                  title: Display Name (optional — defaults to humanized name)
-                  type: string
-                  default: ""
-                emoji:
-                  title: Emoji
-                  type: string
-                  default: "📚"
-                  maxLength: 2
-                topic:
-                  title: Research Topic
-                  type: string
-                  description: What this agent watches. Goes into the system prompt.
-                  ui:widget: textarea
-                  ui:options:
-                    rows: 4
-                extraDirective:
-                  title: Additional Directive (optional)
-                  type: string
-                  ui:widget: textarea
-                  ui:options:
-                    rows: 4
-                owner:
-                  title: Owner
-                  type: string
-                  ui:field: EntityPicker
-                  ui:options:
-                    catalogFilter:
-                      kind:
-                        - Group
-                        - User
-                gatewayRef:
-                  title: AgentGateway
-                  type: string
-                  default: research-gateway
-                namespace:
-                  title: Namespace
-                  type: string
-                  default: agent-office
-                ghOwner:
-                  title: GitHub Owner
-                  type: string
-                  default: enterprisewebservice
-                discordChannelUrl:
-                  title: Discord Channel URL (optional)
-                  type: string
-                  default: https://discord.com/channels/@me
-            # ============= LLM Auto-Research Agent =============
-            - required:
-                - baseModel
-                - version
-                - owner
-              properties:
-                kind:
-                  const: llm-auto-research-agent
-                version:
-                  title: Variant Version
-                  type: string
-                  description: >-
-                    Used to make the project + repo names unique
-                    across iterations on the same base model. Bump
-                    this when you start a new variant (v1, v2, v3,
-                    ...). The full project name becomes
-                    `<sanitized-model>-autoresearch-<version>`, so
-                    "ibm-granite/granite-4.1-8b" + "v2" produces
-                    "ibm-granite-granite-4-1-8b-autoresearch-v2".
-                  pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]?$"
-                  default: v1
-                  maxLength: 16
-                baseModel:
-                  title: Base Model
-                  type: string
-                  description: >-
-                    Live dropdown of every model from the cluster's
-                    Model Registry and Model Catalog. Each entry is
-                    prefixed [Registry] or [Catalog] so you can tell
-                    the source at a glance. Use the filter icon next
-                    to the picker to narrow the list to one source.
-                  ui:field: SourceFilteredEntityPicker
-                  ui:options:
-                    catalogFilter:
-                      kind: Resource
-                      spec.type: ml-model
-                    sourceLabels:
-                      model-registry: "Model Registry"
-                      model-catalog: "Model Catalog"
-                baseModelCustomURI:
-                  title: Custom URI Override (optional)
-                  type: string
-                  description: Free-text override for models NOT yet in the registry.
-                  default: ""
-                baseModelRevision:
-                  title: Base Model Revision
-                  type: string
-                  default: main
-                owner:
-                  title: Owner
-                  type: string
-                  ui:field: EntityPicker
-                  ui:options:
-                    catalogFilter:
-                      kind:
-                        - Group
-                        - User
-                dataset:
-                  title: Training Dataset (Hugging Face)
-                  type: string
-                  default: ise-uiuc/Magicoder-OSS-Instruct-75K
-                trainingSplit:
-                  title: Training Split
-                  type: string
-                  default: train
-                trainingSampleCount:
-                  title: Training Sample Count Cap
-                  type: integer
-                  default: 2000
-                evalMetric:
-                  title: Eval Metric
-                  type: string
-                  default: eval_loss
-                evalDirection:
-                  title: Eval Direction
-                  type: string
-                  enum: [minimize, maximize]
-                  default: minimize
-                cadenceMinutes:
-                  title: Cadence (minutes between rounds)
-                  type: integer
-                  default: 30
-                maxConcurrentRuns:
-                  title: Max Concurrent Runs
-                  type: integer
-                  default: 1
-                maxTotalExperiments:
-                  title: Max Total Experiments
-                  type: integer
-                  default: 100
-                validationMode:
-                  title: Start in validation mode (10-step smoke tests)
-                  type: boolean
-                  default: false
-                quayRobotUsername:
-                  title: Quay Robot Username (optional)
-                  type: string
-                  default: ""
-                quayRobotPassword:
-                  title: Quay Robot Password (optional)
-                  type: string
-                  ui:widget: password
-                  default: ""
-                quayNamespace:
-                  title: Quay Namespace
-                  type: string
-                  default: deanpeterson
-                modelRegistryInstance:
-                  title: ModelRegistry Instance
-                  type: string
-                  default: autoresearch-registry
-                experimenterPromptExtra:
-                  title: Experimenter Extra Directive (optional)
-                  type: string
-                  ui:widget: textarea
-                  ui:options:
-                    rows: 4
-                emoji:
-                  title: Emoji
-                  type: string
-                  default: "🔬"
-                  maxLength: 2
-                namespace:
-                  title: OpenShift Namespace
-                  type: string
-                  default: agent-office
-                runtimeMode:
-                  title: Experimenter Runtime
-                  type: string
-                  description: >-
-                    "dedicated" (default) — the experimenter gets its
-                    own openclaw Pod with its own browser profile.
-                    Recommended for autoresearch: isolated state, no
-                    contention with other agents, easier to debug.
-                    "shared" — the experimenter slots into an existing
-                    AgentGateway pod (e.g., research-gateway) and
-                    shares its node-host browser. Pick this only if
-                    you need the same Discord/Slack/IRC channels the
-                    gateway already owns.
-                  enum: [dedicated, shared]
-                  enumNames:
-                    - "Dedicated — own openclaw Pod (recommended)"
-                    - "Shared — slot into an existing AgentGateway"
-                  default: dedicated
-                gatewayRef:
-                  title: Shared Gateway Name
-                  type: string
-                  description: >-
-                    Only used when Runtime = "shared". The
-                    AgentGateway in the same namespace whose pod will
-                    host this experimenter as a logical openclaw agent.
-                  default: research-gateway
-                ghOwner:
-                  title: GitHub Owner
-                  type: string
-                  default: enterprisewebservice
-                nameOverride:
-                  title: Project Name Override (optional — auto-derived)
-                  type: string
-                  pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
-                  default: ""
+            - "Dedicated — own openclaw Pod (recommended)"
+            - "Shared — slot into an existing AgentGateway"
+          default: dedicated
+        gatewayRef:
+          title: Shared Gateway Name
+          type: string
+          description: >-
+            Only used when Runtime = "shared". The AgentGateway in the
+            same namespace whose pod will host this experimenter as a
+            logical openclaw agent.
+          default: research-gateway
+        ghOwner:
+          title: GitHub Owner
+          type: string
+          default: enterprisewebservice
+        nameOverride:
+          title: Project Name Override (optional — auto-derived)
+          type: string
+          pattern: "^([a-z0-9][a-z0-9-]*[a-z0-9])?$"
+          default: ""
 
   # =======================================================================
-  # STEPS (unchanged from previous version — both modes' paths stay
-  # exactly as before)
+  # STEPS — autoresearch only. No more kind branching; every step runs
+  # unconditionally. (The KB-creator steps + skeleton-kb-creator are
+  # gone — that mode lives in the OpenClaw Agent template now.)
   # =======================================================================
   steps:
-    # ------- LLM Knowledge Base Creator path -------
-    - id: fetch-kb-creator
-      name: Fetch KB-Creator Skeleton
-      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      action: fetch:template
-      input:
-        url: ./skeleton-kb-creator
-        targetPath: gitops
-        values:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          emoji: ${{ parameters.emoji }}
-          topic: ${{ parameters.topic }}
-          extraDirective: ${{ parameters.extraDirective }}
-          gatewayRef: ${{ parameters.gatewayRef }}
-          namespace: ${{ parameters.namespace }}
-          discordChannelUrl: ${{ parameters.discordChannelUrl }}
-          owner: ${{ parameters.owner }}
-          ghOwner: ${{ parameters.ghOwner }}
-          repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-kb-gitops
-          wikiRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-wiki
-          defaultBranch: main
-          argoNS: openshift-gitops
-          argoProject: default
-
-    - id: publish-wiki-kb
-      name: Publish Wiki Repository (KB-Creator)
-      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      action: publish:github
-      input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-wiki
-        sourcePath: gitops/wiki-seed
-        defaultBranch: main
-        repoVisibility: private
-        gitAuthorName: Dean Peterson
-        gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: Knowledge base — agent-curated findings.
-
-    - id: publish-gitops-kb
-      name: Publish GitOps (KB-Creator)
-      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      action: publish:github
-      input:
-        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-kb-gitops
-        sourcePath: gitops/gitops
-        defaultBranch: main
-        repoVisibility: public
-        gitAuthorName: Dean Peterson
-        gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: GitOps manifests for KB-Creator agent.
-
-    - id: argocd-register-kb
-      name: Register in ArgoCD (KB-Creator)
-      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      action: argocd:create-resources
-      input:
-        appName: ${{ parameters.name }}-kb
-        argoInstance: default
-        namespace: ${{ parameters.namespace }}
-        repoUrl: ${{ steps['publish-gitops-kb'].output.remoteUrl }}
-        path: overlays/development
-
-    - id: catalog-register-kb
-      name: Register in Catalog (KB-Creator)
-      if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      action: catalog:register
-      input:
-        repoContentsUrl: ${{ steps['publish-gitops-kb'].output.repoContentsUrl }}
-        catalogInfoPath: /catalog-info.yaml
-
-    # ------- LLM Auto-Research Agent path -------
     - id: resolve-base-model
       name: Resolve Base Model from Registry
-      if: ${{ parameters.kind === "llm-auto-research-agent" and parameters.baseModel and parameters.baseModel.length > 0 }}
+      if: ${{ parameters.baseModel and parameters.baseModel.length > 0 }}
       action: catalog:fetch
       input:
         entityRef: ${{ parameters.baseModel }}
 
     - id: fetch-autoresearch
       name: Fetch Auto-Research Skeleton
-      if: ${{ parameters.kind === "llm-auto-research-agent" }}
       action: fetch:template
       input:
         url: ./skeleton-autoresearch
@@ -403,8 +239,7 @@ spec:
           argoProject: default
 
     - id: publish-wiki-autoresearch
-      name: Publish Wiki Repository (Auto-Research)
-      if: ${{ parameters.kind === "llm-auto-research-agent" }}
+      name: Publish Wiki Repository
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-wiki
@@ -416,8 +251,7 @@ spec:
         description: Autoresearch experiment wiki.
 
     - id: publish-gitops-autoresearch
-      name: Publish GitOps (Auto-Research)
-      if: ${{ parameters.kind === "llm-auto-research-agent" }}
+      name: Publish GitOps Repository
       action: publish:github
       input:
         repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
@@ -429,8 +263,7 @@ spec:
         description: GitOps manifests for auto-research project.
 
     - id: argocd-register-autoresearch
-      name: Register in ArgoCD (Auto-Research)
-      if: ${{ parameters.kind === "llm-auto-research-agent" }}
+      name: Register in ArgoCD
       action: argocd:create-resources
       input:
         appName: ${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
@@ -440,8 +273,7 @@ spec:
         path: overlays/development
 
     - id: catalog-register-autoresearch
-      name: Register in Catalog (Auto-Research)
-      if: ${{ parameters.kind === "llm-auto-research-agent" }}
+      name: Register in Catalog
       action: catalog:register
       input:
         repoContentsUrl: ${{ steps['publish-gitops-autoresearch'].output.repoContentsUrl }}
@@ -449,18 +281,10 @@ spec:
 
   output:
     links:
-      - title: GitOps Repository (KB-Creator)
-        url: ${{ steps['publish-gitops-kb'].output.remoteUrl }}
-        if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      - title: Wiki Repository (KB-Creator)
-        url: ${{ steps['publish-wiki-kb'].output.remoteUrl }}
-        if: ${{ parameters.kind === "llm-knowledge-base-creator" }}
-      - title: GitOps Repository (Auto-Research)
+      - title: GitOps Repository
         url: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
-        if: ${{ parameters.kind === "llm-auto-research-agent" }}
-      - title: Wiki Repository (Auto-Research)
+      - title: Wiki Repository
         url: ${{ steps['publish-wiki-autoresearch'].output.remoteUrl }}
-        if: ${{ parameters.kind === "llm-auto-research-agent" }}
       - title: Open in Catalog
         icon: catalog
-        entityRef: ${{ steps['catalog-register-kb'].output.entityRef or steps['catalog-register-autoresearch'].output.entityRef }}
+        entityRef: ${{ steps['catalog-register-autoresearch'].output.entityRef }}

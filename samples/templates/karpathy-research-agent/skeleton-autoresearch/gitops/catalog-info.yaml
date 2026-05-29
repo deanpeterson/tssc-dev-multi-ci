@@ -24,7 +24,14 @@ metadata:
     # Discriminator used by the codex-reauth-ui CodexAuthCard
     # mountPoint filter so the auth-status card only surfaces on
     # agent component pages (not every Component the cluster has).
+    # Also lights up the agentworkstation-binders Bindings card.
     agentoffice.ai/agent-kind: autoresearch
+    # v1.6.0: tells the agentworkstation-binders plugin which AW this
+    # project entity manages bindings for. The project entity is named
+    # <name>; the actual agent is the experimenter AW (<name>-experimenter,
+    # matching AutoResearchProject.spec.experimenter.workstation).
+    agentoffice.ai/agentworkstation-name: ${{ values.name }}-experimenter
+    agentoffice.ai/namespace: ${{ values.namespace }}
   tags:
     - ai
     - autoresearch
