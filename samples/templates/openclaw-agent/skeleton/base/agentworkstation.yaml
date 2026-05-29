@@ -3,15 +3,37 @@ kind: AgentWorkstation
 metadata:
   name: ${{ values.name }}
   namespace: ${{ values.namespace }}
+  annotations:
+    # Tells the agentworkstation-binders RHDH plugin which gitops file
+    # holds this AW manifest, so the binders plugin's Save button can
+    # open a PR against the right place (binders plugin v0.0.3+).
+    agentoffice.ai/gitops-source-repo: ${{ values.ghOwner }}/${{ values.name }}-agent-gitops
+    agentoffice.ai/gitops-source-path: base/agentworkstation.yaml
+    agentoffice.ai/gitops-source-branch: ${{ values.defaultBranch }}
   labels:
     app.kubernetes.io/managed-by: agent-office
     agentoffice.ai/agent: ${{ values.name }}
+{%- if values.role %}
+    agentoffice.ai/role: ${{ values.role }}
+{%- endif %}
 spec:
   displayName: ${{ values.displayName }}
   emoji: "${{ values.emoji }}"
-  description: ${{ values.description }}
+  description: |
+    ${{ values.description | replace('\n', '\n    ') }}
+{%- if values.role %}
+  role: ${{ values.role }}
+{%- endif %}
+{%- if values.capabilities and values.capabilities | length > 0 %}
+  capabilities:
+{%- for cap in values.capabilities %}
+    - ${{ cap }}
+{%- endfor %}
+{%- endif %}
   systemPrompt: |
     ${{ values.systemPrompt | replace('\n', '\n    ') }}
+  # OpenClaw runtime image. Operator pulls this for the agent's
+  # gateway pod when this AW joins a shared runtime.
   image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw@sha256:8d8b5c0379d01a5907110b37d942e7e985cd9538112f8cac175e91dea015dc06
   model:
     provider: ${{ values.provider }}
@@ -27,8 +49,54 @@ spec:
 {%- if values.provider == "smr" and values.routerRef %}
     modelRouterRef: ${{ values.routerRef }}
 {%- endif %}
-  tools:
-    allow:
-{%- for tool in values.tools %}
-      - ${{ tool }}
+
+  # Shared runtime — agent runs as a logical persona inside the
+  # gateway's openclaw process, sharing a browser profile namespace.
+  # Use runtime.dedicated for agents that need an isolated pod
+  # (e.g. heavyweight Developer agents in their own Dev Spaces
+  # workspace) — edit this manifest after first create.
+  runtime:
+    shared:
+      browserProfile: ${{ values.name }}
+      gatewayRef: ${{ values.gatewayRef }}
+
+{%- if values.attachKnowledgeBases and values.attachKnowledgeBases | length > 0 or values.createNewKnowledgeBase %}
+  # KnowledgeBases — bound (explicit per agent). The operator mounts
+  # each at /home/node/.openclaw/wiki/<name>/ inside the gateway pod
+  # and renders a per-agent KBS.md index listing them. Skills, by
+  # contrast, are discovered from the cluster catalog at runtime
+  # (v1.6.0+) — every agent sees all skills, no per-agent binding.
+  knowledgeBaseRefs:
+{%- for kb in values.attachKnowledgeBases %}
+    - name: ${{ kb }}
+      role: knowledge-pool
 {%- endfor %}
+{%- if values.createNewKnowledgeBase %}
+    - name: ${{ values.name }}-wiki
+      role: experiment-history
+{%- endif %}
+{%- endif %}
+
+{%- if values.federateGithubMcp or values.discordChannelUrl %}
+  # Optional integrations toggled via the template form.
+{%- endif %}
+{%- if values.federateGithubMcp %}
+  tools:
+    mcpServers:
+      # github MCP federation — 79 GitHub Issues / Projects v2 tools
+      # served through one gateway URL. The broker holds the GitHub
+      # App installation token (rotated every 30m via ESO from Vault);
+      # this agent never sees the credential.
+      - name: github
+        url: http://mcp-gateway-data-science-gateway-class.${{ values.namespace }}.svc.cluster.local/mcp
+        type: http
+        headers:
+          Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+        envFromSecret: github-mcp-installation-token
+{%- endif %}
+
+{%- if values.discordChannelUrl %}
+  channels:
+    discord:
+      url: "${{ values.discordChannelUrl }}"
+{%- endif %}

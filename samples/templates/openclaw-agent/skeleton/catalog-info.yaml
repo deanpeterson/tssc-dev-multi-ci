@@ -12,11 +12,23 @@ metadata:
   annotations:
     argocd/app-name: ${{ values.name }}-agent
     backstage.io/kubernetes-id: ${{ values.name }}
+    # v1.6.0 annotations the agentworkstation-binders RHDH plugin
+    # reads. agentoffice.ai/agent-kind lights the Bindings card up
+    # on this entity (binders plugin's mountPoint condition). The
+    # other two tell the binders plugin which AW + namespace the
+    # entity is editing (for the 1:1 entity↔AW case, redundant
+    # with name; explicit makes future renames safe).
+    agentoffice.ai/agent-kind: ${{ values.role | default("agent", true) }}
+    agentoffice.ai/agentworkstation-name: ${{ values.name }}
+    agentoffice.ai/namespace: ${{ values.namespace }}
   tags:
     - ai
     - agent
     - openclaw
+{%- if values.role %}
+    - ${{ values.role }}
+{%- endif %}
 spec:
-  type: service
+  type: ai-agent
   lifecycle: production
   owner: ${{ values.owner }}

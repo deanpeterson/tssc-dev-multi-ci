@@ -2,8 +2,13 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: openclaw-agent
-  title: OpenClaw AI Agent
-  description: Deploy an OpenClaw AI agent on OpenShift, managed via GitOps and discoverable in Agent Office.
+  title: OpenClaw Agent (standard)
+  description: >-
+    Deploy a standard OpenClaw AI agent on OpenShift via GitOps. For
+    PM agents, role-specific agents, KB-curating agents, Discord-bound
+    agents — anything that ISN'T autoresearch fine-tuning (which has its
+    own template). Sample system prompts for common roles (pm, etc.)
+    live alongside this template in samples/.
   tags:
     - ai
     - agent
@@ -14,24 +19,27 @@ spec:
   type: service
 
   parameters:
+    # ================================================================
+    # PAGE 1 — Identity. Name + display + emoji + description +
+    # owner. Same as before; nothing role-specific yet.
+    # ================================================================
     - title: Agent Identity
       required:
         - name
         - displayName
-        - systemPrompt
         - owner
       properties:
         name:
           title: Agent Name
           type: string
-          description: Unique agent name (lowercase, DNS-safe)
+          description: Unique agent name (lowercase, DNS-safe). Becomes the AgentWorkstation CR name and the Backstage Component name.
           pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
           maxLength: 63
           ui:autofocus: true
         displayName:
           title: Display Name
           type: string
-          description: Human-readable name shown in Agent Office
+          description: Human-readable name shown in Dev Hub + Discord
         emoji:
           title: Emoji
           type: string
@@ -42,13 +50,9 @@ spec:
           title: Description
           type: string
           description: Brief description of what this agent does
-        systemPrompt:
-          title: Directive (System Prompt)
-          type: string
-          description: The agent's core directive — what it should do and how it should behave
           ui:widget: textarea
           ui:options:
-            rows: 8
+            rows: 2
         owner:
           title: Owner
           type: string
@@ -60,6 +64,52 @@ spec:
                 - Group
                 - User
 
+    # ================================================================
+    # PAGE 2 — Role & Personality. The "what kind of agent" axis.
+    # role + capabilities are explicit (used by the PM Agent to match
+    # tasks against agent inventory). systemPrompt is where the
+    # agent's personality + protocol live.
+    # ================================================================
+    - title: Role & Personality
+      required:
+        - role
+        - systemPrompt
+      properties:
+        role:
+          title: Role
+          type: string
+          description: >-
+            Short role label other agents match against (e.g. "pm",
+            "developer", "researcher", "ops", "reviewer"). The PM
+            Agent's planner uses this to assign cards to the right
+            agent.
+          default: assistant
+        capabilities:
+          title: Capabilities
+          type: array
+          description: >-
+            Capability tags the PM Agent uses to assign cards. E.g.
+            for a PM agent: project-intake, task-decomposition,
+            agent-inventory.
+          items:
+            type: string
+          default: []
+        systemPrompt:
+          title: Directive (System Prompt)
+          type: string
+          description: >-
+            The agent's core directive — what it should do and how
+            it should behave. For PM agents, copy the canonical
+            prompt from samples/pm-agent-system-prompt.md alongside
+            this template (or any saved preset). For other roles,
+            write your own.
+          ui:widget: textarea
+          ui:options:
+            rows: 14
+
+    # ================================================================
+    # PAGE 3 — LLM Backend. Same as before.
+    # ================================================================
     - title: LLM Backend
       required:
         - provider
@@ -82,7 +132,7 @@ spec:
         modelName:
           title: Model Name
           type: string
-          description: "Model ID (leave empty for default). Codex subscription default: gpt-5.4"
+          description: 'Model ID (leave empty for default). Codex default: gpt-5.4'
         routerRef:
           title: Router Name
           type: string
@@ -94,41 +144,94 @@ spec:
           description: API key for the selected provider (not needed for OpenAI Codex subscription)
           ui:widget: password
 
-    - title: Tools & Deployment
-      required:
-        - namespace
+    # ================================================================
+    # PAGE 4 — Knowledge Bases. NEW v1.6.0. Knowledge bases are bound
+    # (explicit per agent) — the operator mounts each attached KB into
+    # the agent's gateway pod. Skills, by contrast, are discovered
+    # from the cluster catalog at runtime (every agent sees the full
+    # catalog, no per-agent skill selection here).
+    # ================================================================
+    - title: Knowledge Bases (optional)
       properties:
-        tools:
-          title: Enabled Tools
+        attachKnowledgeBases:
+          title: Attach existing KnowledgeBases
           type: array
-          description: Tools available to the agent
-          uniqueItems: true
+          description: >-
+            KnowledgeBases this agent should mount + read at runtime.
+            Pick from KnowledgeBase entities in the cluster catalog.
+            Common pick for a PM agent — agent-platform-capabilities
+            (the canonical planning-reference wiki).
           items:
             type: string
-            enum:
-              - browser
-              - web_search
-              - web_fetch
-              - exec
-              - memory
-          default:
-            - memory
-            - web_search
-            - web_fetch
-            - browser
+          uniqueItems: true
+        createNewKnowledgeBase:
+          title: Also create a NEW knowledge base for this agent to curate
+          type: boolean
+          description: >-
+            Check if this is a "KB-creator" style agent (an agent
+            whose job is to watch a topic and accumulate findings
+            into a new wiki). The scaffolder will emit a fresh
+            KnowledgeBase CR + git-mirrored wiki repo alongside the
+            agent.
+          default: false
+        newKnowledgeBaseTopic:
+          title: New KB — Topic / Description
+          type: string
+          description: 'Only used when "create new KB" is checked. What is this KB about?'
+
+    # ================================================================
+    # PAGE 5 — Channels & Tools. NEW v1.6.0.
+    # ================================================================
+    - title: Channels & Tools (optional)
+      properties:
+        discordChannelUrl:
+          title: Discord Channel URL
+          type: string
+          description: >-
+            Optional. If set, the operator binds inbound messages on
+            this Discord channel to this agent. Example
+            https://discord.com/channels/<guild>/<channel>.
+        federateGithubMcp:
+          title: Federate the GitHub MCP server (79 GitHub Issues / Projects v2 tools)
+          type: boolean
+          description: >-
+            Check for PM-style and developer agents that need to
+            create/manage GitHub Issues and Projects v2 boards. The
+            tool calls go through the Kuadrant MCP Gateway; the
+            broker holds the GitHub App-installation-token so the
+            agent never sees credentials.
+          default: false
+
+    # ================================================================
+    # PAGE 6 — Deployment. Namespace + gateway + github repo owner.
+    # ================================================================
+    - title: Deployment
+      required:
+        - namespace
+        - gatewayRef
+        - ghOwner
+      properties:
         namespace:
           title: Namespace
           type: string
-          description: OpenShift namespace for the agent deployment
+          description: OpenShift namespace the AgentWorkstation lives in
           default: agent-office
+        gatewayRef:
+          title: AgentGateway
+          type: string
+          description: >-
+            Shared runtime gateway this agent runs on. Use
+            research-gateway unless you have a dedicated gateway for
+            your tenant.
+          default: research-gateway
         ghOwner:
           title: GitHub Owner
           type: string
-          description: GitHub organization or user for the gitops repo
+          description: GitHub organization or user where the gitops repo will live
           default: enterprisewebservice
 
   steps:
-    # 1. Scaffold the gitops repo from skeleton
+    # 1. Scaffold the gitops repo from skeleton.
     - id: fetch-gitops
       name: Fetch GitOps Skeleton
       action: fetch:template
@@ -140,13 +243,20 @@ spec:
           displayName: ${{ parameters.displayName }}
           emoji: ${{ parameters.emoji }}
           description: ${{ parameters.description }}
+          role: ${{ parameters.role }}
+          capabilities: ${{ parameters.capabilities }}
           systemPrompt: ${{ parameters.systemPrompt }}
           provider: ${{ parameters.provider }}
           modelName: ${{ parameters.modelName }}
           routerRef: ${{ parameters.routerRef }}
           apiKey: ${{ parameters.apiKey }}
-          tools: ${{ parameters.tools }}
+          attachKnowledgeBases: ${{ parameters.attachKnowledgeBases }}
+          createNewKnowledgeBase: ${{ parameters.createNewKnowledgeBase }}
+          newKnowledgeBaseTopic: ${{ parameters.newKnowledgeBaseTopic }}
+          discordChannelUrl: ${{ parameters.discordChannelUrl }}
+          federateGithubMcp: ${{ parameters.federateGithubMcp }}
           namespace: ${{ parameters.namespace }}
+          gatewayRef: ${{ parameters.gatewayRef }}
           owner: ${{ parameters.owner }}
           ghOwner: ${{ parameters.ghOwner }}
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-agent-gitops
@@ -154,7 +264,7 @@ spec:
           argoNS: openshift-gitops
           argoProject: default
 
-    # 2. Publish gitops repo to GitHub
+    # 2. Publish the gitops repo to GitHub.
     - id: publish-gitops
       name: Publish GitOps Repository
       action: publish:github
@@ -165,16 +275,32 @@ spec:
         repoVisibility: public
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: "GitOps manifests for OpenClaw agent: ${{ parameters.displayName }}"
+        description: 'GitOps manifests for OpenClaw agent: ${{ parameters.displayName }}'
 
-    # 3. Wait for repo to be available
+    # 3. Optional: publish a NEW wiki repo if the user opted in to
+    # "create new KB alongside this agent". The KB's git-mirror sync
+    # uses this repo as remote.
+    - id: publish-wiki
+      name: Publish Wiki Repository (only when creating a new KB)
+      if: ${{ parameters.createNewKnowledgeBase }}
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=${{ parameters.ghOwner }}&repo=${{ parameters.name }}-wiki
+        sourcePath: gitops/wiki-seed
+        defaultBranch: main
+        repoVisibility: private
+        gitAuthorName: Dean Peterson
+        gitAuthorEmail: deanpeterson@users.noreply.github.com
+        description: 'Knowledge base — curated by agent ${{ parameters.name }}.'
+
+    # 4. Wait for repo to be available.
     - id: wait-repo
       name: Wait for Repository
       action: debug:wait
       input:
         seconds: 3
 
-    # 4. Register ArgoCD Application
+    # 5. Register ArgoCD Application.
     - id: argocd-register
       name: Register in ArgoCD
       action: argocd:create-resources
@@ -185,7 +311,9 @@ spec:
         repoUrl: ${{ steps['publish-gitops'].output.remoteUrl }}
         path: overlays/development
 
-    # 5. Register in Backstage catalog
+    # 6. Register in Backstage catalog so the agent appears as a
+    # Component entity (with the binders plugin's AgentBindingsCard
+    # mounted on its overview page).
     - id: catalog-register
       name: Register in Catalog
       action: catalog:register

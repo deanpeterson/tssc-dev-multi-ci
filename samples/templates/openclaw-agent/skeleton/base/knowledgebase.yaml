@@ -1,0 +1,36 @@
+# Conditional resource — only included by kustomization.yaml when
+# the template form's "Also create a NEW knowledge base for this
+# agent to curate" toggle was on. For agents that just CONSUME
+# existing KBs (PM agents reading agent-platform-capabilities, etc.),
+# this file is left out of the kustomize tree.
+#
+# The git-mirror block makes the wiki PVC bidirectional with the
+# <name>-wiki GitHub repo the template's publish-wiki step creates:
+# operator's git-sync sidecar pulls remote → PVC every 5 min and
+# pushes new files PVC → remote on the same cadence.
+apiVersion: agentoffice.ai/v1alpha1
+kind: KnowledgeBase
+metadata:
+  name: ${{ values.name }}-wiki
+  namespace: ${{ values.namespace }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/agent: ${{ values.name }}
+spec:
+  displayName: "${{ values.displayName }} Wiki"
+  description: |
+    Knowledge base curated by the ${{ values.name }} agent.
+
+    ${{ values.newKnowledgeBaseTopic }}
+  gatewayRef:
+    name: ${{ values.gatewayRef }}
+  storage:
+    size: 5Gi
+  gitMirror:
+    url: https://github.com/${{ values.ghOwner }}/${{ values.name }}-wiki
+    branch: ${{ values.defaultBranch }}
+    cadence: "*/5 * * * *"
+    # Standard token chain — operator-managed Secret refreshed by ESO
+    # from Vault. Create the matching ExternalSecret once per cluster
+    # (see cluster/secrets/ in the agent-office gitops repo).
+    credentialsSecretRef: ${{ values.name }}-wiki-git-token
