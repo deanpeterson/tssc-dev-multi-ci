@@ -1,0 +1,5 @@
+# Marker file — presence of this path tells the agent-office-agents
+# ArgoCD ApplicationSet (SCM generator, pathsExist filter) to adopt this
+# repo: it creates the Application (<name>-autoresearch) in the shared
+# agent-office project. Replaces the scaffolder's old
+# argocd-register-autoresearch step. Do not delete.

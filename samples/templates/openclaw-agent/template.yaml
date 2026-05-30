@@ -297,20 +297,12 @@ spec:
       input:
         seconds: 3
 
-    # 5. Register ArgoCD Application.
-    - id: argocd-register
-      name: Register in ArgoCD
-      action: argocd:create-resources
-      input:
-        appName: ${{ parameters.name }}-agent
-        argoInstance: default
-        # Use the SHARED, pre-existing agent-office AppProject rather than
-        # letting the action create a per-app project — that raced (app
-        # rejected before the fresh project propagated) and leaked.
-        projectName: agent-office
-        namespace: ${{ parameters.namespace }}
-        repoUrl: ${{ steps['publish-gitops'].output.remoteUrl }}
-        path: overlays/development
+    # 5. ArgoCD: no scaffolder step. The agent-office-agents
+    # ApplicationSet (agent-office repo, cluster/argocd-appset/) discovers
+    # this repo via its marker file (argocd/applicationset-managed) and
+    # creates the Application in the SHARED agent-office project —
+    # race-free, declarative, no per-app project. Replaces the old roadie
+    # argocd:create-resources step (which raced + leaked per-app projects).
 
     # 6. Register in Backstage catalog so the agent appears as a
     # Component entity (with the binders plugin's AgentBindingsCard
