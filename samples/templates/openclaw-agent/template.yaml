@@ -257,7 +257,9 @@ spec:
           repoURL: https://github.com/${{ parameters.ghOwner }}/${{ parameters.name }}-agent-gitops
           defaultBranch: main
           argoNS: openshift-gitops
-          argoProject: default
+          # Shared scoped project (cluster/agent-office-appproject.yaml) —
+          # replaces the per-app project the roadie action used to race on.
+          argoProject: agent-office
 
     # 2. Publish the gitops repo to GitHub.
     - id: publish-gitops
@@ -302,6 +304,10 @@ spec:
       input:
         appName: ${{ parameters.name }}-agent
         argoInstance: default
+        # Use the SHARED, pre-existing agent-office AppProject rather than
+        # letting the action create a per-app project — that raced (app
+        # rejected before the fresh project propagated) and leaked.
+        projectName: agent-office
         namespace: ${{ parameters.namespace }}
         repoUrl: ${{ steps['publish-gitops'].output.remoteUrl }}
         path: overlays/development

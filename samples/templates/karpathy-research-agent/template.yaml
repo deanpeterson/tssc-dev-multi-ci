@@ -262,7 +262,8 @@ spec:
           gitopsRepoURL: https://github.com/${{ parameters.ghOwner }}/${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch-gitops
           defaultBranch: main
           argoNS: openshift-gitops
-          argoProject: default
+          # Shared scoped project (cluster/agent-office-appproject.yaml).
+          argoProject: agent-office
 
     - id: publish-wiki-autoresearch
       name: Publish Wiki Repository
@@ -294,6 +295,8 @@ spec:
       input:
         appName: ${{ (parameters.nameOverride if parameters.nameOverride else ((steps['resolve-base-model'].output.entity.metadata.annotations['agentoffice.ai/registered-model'] + '-autoresearch-' + parameters.version) if steps['resolve-base-model'].output else ('autoresearch-project-' + parameters.version))) | replace('/', '-') | replace('.', '-') | lower }}-autoresearch
         argoInstance: default
+        # Shared, pre-existing agent-office AppProject (no per-app race/leak).
+        projectName: agent-office
         namespace: ${{ parameters.namespace }}
         repoUrl: ${{ steps['publish-gitops-autoresearch'].output.remoteUrl }}
         path: overlays/development
