@@ -55,10 +55,17 @@ spec:
   # Use runtime.dedicated for agents that need an isolated pod
   # (e.g. heavyweight Developer agents in their own Dev Spaces
   # workspace) — edit this manifest after first create.
+{%- if values.runtimeMode == "dedicated" %}
+  runtime:
+    # The operator materializes a per-agent gateway Pod / PVC / Service /
+    # Route for this agent (its children cascade on delete).
+    dedicated: {}
+{%- else %}
   runtime:
     shared:
       browserProfile: ${{ values.name }}
       gatewayRef: ${{ values.gatewayRef }}
+{%- endif %}
 
 {%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
 {%- set mcps = values.compose.mcpServers or [] %}
