@@ -1,0 +1,35 @@
+{%- if values.runtimeMode == "dedicated" %}
+# Dedicated gateway for ${{ values.name }}.
+#
+# Declared HERE, in the agent's own gitops repo — NOT minted by the
+# operator — so the gateway is a first-class, declarative resource that's
+# reversible by deleting it. The AgentWorkstation's
+# runtime.shared.gatewayRef points at this gateway by name.
+#
+# Nobody "owns" this via ownerReferences: its lifecycle is git/ArgoCD.
+# Pruning this repo removes BOTH the agent and this gateway (the
+# AgentGateway controller cascades its own Pod / PVC / Service / Route).
+#
+# A dedicated gateway is just "a gateway with one agent" — point another
+# AgentWorkstation's gatewayRef at "${{ values.name }}" and it joins this
+# same gateway pod. The operator treats that identically to any shared
+# agent; there is no dedicated-vs-shared code path.
+#
+# namespace + commonLabels are applied by base/kustomization.yaml.
+apiVersion: agentoffice.ai/v1alpha1
+kind: AgentGateway
+metadata:
+  name: ${{ values.name }}
+spec:
+  displayName: ${{ values.displayName }}
+  description: "Dedicated gateway for agent ${{ values.name }}"
+  # Same OpenClaw runtime image the AgentWorkstation pins, so the
+  # dedicated pod matches the agent's intended runtime.
+  image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw@sha256:8d8b5c0379d01a5907110b37d942e7e985cd9538112f8cac175e91dea015dc06
+{%- if values.provider == "openai-codex" %}
+  # Codex-backed agent: the gateway pod reads ~/.codex/auth.json from the
+  # cluster-managed Codex subscription secret (the same ESO-synced secret
+  # research-gateway uses). The agent never sees raw credentials.
+  codexCredentialsSecretRef: codex-subscription-credentials
+{%- endif %}
+{%- endif %}

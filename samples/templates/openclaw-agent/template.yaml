@@ -217,13 +217,16 @@ spec:
           type: string
           description: >-
             "shared" — the agent slots into an existing AgentGateway pod
-            as a logical persona (lighter; share a browser profile +
-            channels). "dedicated" — the operator gives the agent its OWN
-            gateway Pod / PVC / Service (isolated state; heavier).
+            as a logical persona (lighter; shares a browser profile +
+            channels). "dedicated" — this repo ALSO declares its own
+            AgentGateway and the agent runs alone on that pod (isolated
+            state; heavier). Either way it's the same operator behaviour —
+            register the agent on a gateway — so you can point other
+            agents at a dedicated gateway later to share its pod.
           enum: [shared, dedicated]
           enumNames:
             - "Shared — join an existing AgentGateway (recommended)"
-            - "Dedicated — own gateway Pod"
+            - "Dedicated — bring your own AgentGateway"
           default: shared
         gatewayRef:
           title: AgentGateway (shared runtime only)

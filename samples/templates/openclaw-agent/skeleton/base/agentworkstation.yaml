@@ -50,20 +50,23 @@ spec:
     modelRouterRef: ${{ values.routerRef }}
 {%- endif %}
 
-  # Shared runtime — agent runs as a logical persona inside the
-  # gateway's openclaw process, sharing a browser profile namespace.
-  # Use runtime.dedicated for agents that need an isolated pod
-  # (e.g. heavyweight Developer agents in their own Dev Spaces
-  # workspace) — edit this manifest after first create.
-{%- if values.runtimeMode == "dedicated" %}
-  runtime:
-    # The operator materializes a per-agent gateway Pod / PVC / Service /
-    # Route for this agent (its children cascade on delete).
-    dedicated: {}
-{%- else %}
+  # Runtime — every agent is a logical openclaw persona on an
+  # AgentGateway. There is no "dedicated" runtime in the operator: the
+  # ONLY difference is which gateway this agent's gatewayRef points at.
   runtime:
     shared:
       browserProfile: ${{ values.name }}
+{%- if values.runtimeMode == "dedicated" %}
+      # Dedicated — this agent runs on its OWN gateway, declared as a
+      # sibling AgentGateway/${{ values.name }} in this same repo
+      # (base/agentgateway.yaml). A dedicated gateway is just "a gateway
+      # with one agent": point another agent's gatewayRef here to add
+      # more agents to the same pod later. Deleting this agent (pruning
+      # this repo) removes both the agent and its gateway.
+      gatewayRef: ${{ values.name }}
+{%- else %}
+      # Shared — this agent joins an existing, long-lived gateway as a
+      # persona (lighter; shares the browser profile + channels).
       gatewayRef: ${{ values.gatewayRef }}
 {%- endif %}
 

@@ -15,6 +15,13 @@ commonLabels:
 
 resources:
   - agentworkstation.yaml
+{%- if values.runtimeMode == "dedicated" %}
+  # Dedicated runtime — this agent brings its OWN gateway, declared as a
+  # sibling AgentGateway here (instead of joining research-gateway). The
+  # operator never mints a gateway; it's a plain declarative resource in
+  # this repo, so deleting the repo removes it. Shared agents omit this.
+  - agentgateway.yaml
+{%- endif %}
 {%- if values.createNewKnowledgeBase %}
   # Optional KnowledgeBase CR — emitted only when the template form's
   # "create new KB alongside" toggle was on. The operator git-mirrors
