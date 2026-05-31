@@ -22,8 +22,16 @@ spec:
     Knowledge base curated by the ${{ values.name }} agent.
 
     ${{ values.newKnowledgeBaseTopic }}
+  # The KB attaches to the SAME gateway as its agent — mounting a KB adds
+  # a volume to that gateway's pod (a pod restart), so a dedicated agent's
+  # KB must land on its OWN gateway (isolated), NOT on a shared gateway it
+  # doesn't run on. Mirror the AW's effective gatewayRef.
   gatewayRef:
+{%- if values.runtimeMode == "dedicated" %}
+    name: ${{ values.name }}
+{%- else %}
     name: ${{ values.gatewayRef }}
+{%- endif %}
   storage:
     size: 5Gi
   gitMirror:
