@@ -3,7 +3,10 @@ kind: Component
 metadata:
   name: ${{ values.name }}
   title: ${{ values.displayName }}
-  description: ${{ values.description }}
+  # Backstage rejects a null description ("/metadata/description must be
+  # string"), so an empty form field must still render a real string —
+  # fall back to a generated one. default(x, true) treats "" as falsy.
+  description: ${{ values.description | default("OpenClaw agent: " + values.displayName, true) }}
   links:
     - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.ghOwner }}/${{ values.name }}-agent-gitops"
       title: "Open in Dev Spaces"
