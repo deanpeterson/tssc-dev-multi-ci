@@ -132,7 +132,15 @@ spec:
         modelName:
           title: Model Name
           type: string
-          description: 'Model ID (leave empty for default). Codex default: gpt-5.4'
+          # Intentionally no `default:` here — the right model depends on
+          # which provider you picked, so the per-provider fallback lives
+          # in skeleton/base/agentworkstation.yaml. A default on this
+          # shared field would follow you onto Anthropic/SMR too.
+          description: >-
+            Model ID. Leave empty to take the default for the provider you
+            selected — Codex subscription: gpt-5.6-sol (also available:
+            gpt-5.6, gpt-5.5, gpt-5.4) · OpenAI API: gpt-4o-mini ·
+            Anthropic: claude-sonnet-4-20250514 · SMR: auto
         routerRef:
           title: Router Name
           type: string

@@ -34,11 +34,23 @@ spec:
     ${{ values.systemPrompt | replace('\n', '\n    ') }}
   # OpenClaw runtime image. Operator pulls this for the agent's
   # gateway pod when this AW joins a shared runtime.
-  image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw@sha256:8d8b5c0379d01a5907110b37d942e7e985cd9538112f8cac175e91dea015dc06
+  #
+  # Tag, not digest: this used to pin sha256:8d8b5c03…, a pre-7.x build.
+  # gpt-5.6-sol does not exist on that runtime, so an agent scaffolded
+  # from it could never reach the model this template now defaults to.
+  image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw:v2026.7.1
   model:
     provider: ${{ values.provider }}
 {%- if values.provider == "openai-codex" %}
-    modelName: ${{ values.modelName | default("gpt-5.4", true) }}
+    # `openai-codex` states intent: bill this agent to the ChatGPT/Codex
+    # subscription. agent-office-operator >= v1.7.6 canonicalizes it to
+    # `openai` when rendering the model string (OpenClaw 2026.7.x rejects
+    # `openai-codex` as a legacy provider id), and the gateway's
+    # spec.modelAuth pins auth.order to the OAuth profile.
+    #
+    # gpt-5.6-sol is subscription-only — the metered api.openai.com
+    # endpoint does not serve it.
+    modelName: ${{ values.modelName | default("gpt-5.6-sol", true) }}
 {%- elif values.provider == "smr" %}
     modelName: ${{ values.modelName | default("auto", true) }}
 {%- elif values.provider == "openai" %}

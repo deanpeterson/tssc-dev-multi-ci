@@ -25,11 +25,26 @@ spec:
   description: "Dedicated gateway for agent ${{ values.name }}"
   # Same OpenClaw runtime image the AgentWorkstation pins, so the
   # dedicated pod matches the agent's intended runtime.
-  image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw@sha256:8d8b5c0379d01a5907110b37d942e7e985cd9538112f8cac175e91dea015dc06
+  image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw:v2026.7.1
 {%- if values.provider == "openai-codex" %}
   # Codex-backed agent: the gateway pod reads ~/.codex/auth.json from the
   # cluster-managed Codex subscription secret (the same ESO-synced secret
   # research-gateway uses). The agent never sees raw credentials.
   codexCredentialsSecretRef: codex-subscription-credentials
+  # Bill turns to the subscription, never a metered API key.
+  #
+  # OpenClaw 2026.7.x folded provider `openai-codex` into canonical
+  # `openai`, so one gateway config can describe only ONE OpenAI route.
+  # Without this the operator has to infer the route, and OpenClaw
+  # resolves the credential implicitly — which is how agent traffic
+  # silently landed on per-token billing. mode: subscription makes the
+  # operator render chatgpt.com/backend-api, omit apiKey entirely, and
+  # pin auth.order to the OAuth profile.
+  #
+  # Requires agent-office-operator >= v1.7.6. (The operator would infer
+  # `subscription` from codexCredentialsSecretRef above, but stating it
+  # keeps the billing route readable in git.)
+  modelAuth:
+    mode: subscription
 {%- endif %}
 {%- endif %}
