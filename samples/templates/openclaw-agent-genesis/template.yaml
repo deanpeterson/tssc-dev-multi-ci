@@ -20,7 +20,7 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: openclaw-agent
+  name: openclaw-agent-create
   title: OpenClaw Agent
   description: >-
     Describe the job; the platform composes the agent from the catalog —
