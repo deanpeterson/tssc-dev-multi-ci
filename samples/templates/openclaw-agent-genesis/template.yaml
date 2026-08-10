@@ -37,9 +37,13 @@ spec:
   parameters:
     - title: Describe your agent
       required:
-        - genesis
+        - agent
       properties:
-        genesis:
+        # Key name drives the review page's row labels: `genesis` rendered
+        # every field as "Genesis Name", "Genesis Role"… `agent` reads
+        # correctly ("Agent Name", "Agent Selection") with no extra config.
+        agent:
+          title: Agent
           type: object
           ui:field: AgentGenesis
 
@@ -52,18 +56,18 @@ spec:
         url: ../openclaw-agent/skeleton
         targetPath: gitops
         values:
-          name: ${{ parameters.genesis.name }}
-          displayName: ${{ parameters.genesis.displayName }}
-          emoji: ${{ parameters.genesis.emoji }}
-          description: ${{ parameters.genesis.description }}
-          role: ${{ parameters.genesis.role }}
+          name: ${{ parameters.agent.name }}
+          displayName: ${{ parameters.agent.displayName }}
+          emoji: ${{ parameters.agent.emoji }}
+          description: ${{ parameters.agent.description }}
+          role: ${{ parameters.agent.role }}
           capabilities: []
-          systemPrompt: ${{ parameters.genesis.systemPrompt }}
-          provider: ${{ parameters.genesis.provider }}
-          modelName: ${{ parameters.genesis.modelName }}
+          systemPrompt: ${{ parameters.agent.systemPrompt }}
+          provider: ${{ parameters.agent.provider }}
+          modelName: ${{ parameters.agent.modelName }}
           routerRef: ''
-          apiKey: ${{ parameters.genesis.apiKey }}
-          compose: ${{ parameters.genesis.compose }}
+          apiKey: ${{ parameters.agent.apiKey }}
+          compose: ${{ parameters.agent.compose }}
           createNewKnowledgeBase: false
           newKnowledgeBaseTopic: ''
           discordChannelUrl: ''
@@ -72,7 +76,7 @@ spec:
           gatewayRef: research-gateway
           owner: user:default/deanpeterson
           ghOwner: enterprisewebservice
-          repoURL: https://github.com/enterprisewebservice/${{ parameters.genesis.name }}-agent-gitops
+          repoURL: https://github.com/enterprisewebservice/${{ parameters.agent.name }}-agent-gitops
           defaultBranch: main
           argoNS: openshift-gitops
           argoProject: agent-office
@@ -82,13 +86,13 @@ spec:
       name: Publish GitOps Repository
       action: publish:github
       input:
-        repoUrl: github.com?owner=enterprisewebservice&repo=${{ parameters.genesis.name }}-agent-gitops
+        repoUrl: github.com?owner=enterprisewebservice&repo=${{ parameters.agent.name }}-agent-gitops
         sourcePath: gitops
         defaultBranch: main
         repoVisibility: public
         gitAuthorName: Dean Peterson
         gitAuthorEmail: deanpeterson@users.noreply.github.com
-        description: 'GitOps manifests for OpenClaw agent: ${{ parameters.genesis.displayName }} (one-step genesis)'
+        description: 'GitOps manifests for OpenClaw agent: ${{ parameters.agent.displayName }} (one-step genesis)'
 
     - id: wait-repo
       name: Wait for Repository
