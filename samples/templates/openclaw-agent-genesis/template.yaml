@@ -1,0 +1,116 @@
+# openclaw-agent-genesis — the ONE-STEP agent creator.
+#
+# The standard openclaw-agent template asks seven pages of questions.
+# This one asks ONE: "What will your agent be doing?" The AgentGenesis
+# field (binders plugin >= v0.0.10) sends that description to the
+# operator's POST /catalog/recommend (>= v1.7.12), which selects packs
+# from the live catalog — skills, governed tools, knowledge bases —
+# and drafts the identity. The user reviews, picks the brain (Codex
+# subscription or Claude + API key, the same auth paths the platform
+# already runs), and hits Create.
+#
+# Everything below the fold is DEFAULTED, not asked: shared runtime on
+# research-gateway, agent-office namespace, enterprisewebservice org,
+# ApplicationSet-managed ArgoCD, catalog registration. Change those in
+# the standard template if you need them — this template's contract is
+# exactly one decision surface.
+#
+# The skeleton is the standard template's, unchanged — one skeleton,
+# two front doors.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: openclaw-agent-genesis
+  title: OpenClaw Agent (one step)
+  description: >-
+    Describe the job; the platform composes the agent from the catalog —
+    skills, governed tools, knowledge — drafts its identity, and deploys
+    it on the governed runtime. One page, one Create.
+  tags:
+    - openclaw
+    - agent
+    - genesis
+spec:
+  owner: user:default/deanpeterson
+  type: service
+
+  parameters:
+    - title: Describe your agent
+      required:
+        - genesis
+      properties:
+        genesis:
+          type: object
+          ui:field: AgentGenesis
+
+  steps:
+    # 1. Scaffold the gitops repo from the STANDARD template's skeleton.
+    - id: fetch-gitops
+      name: Fetch GitOps Skeleton
+      action: fetch:template
+      input:
+        url: ../openclaw-agent/skeleton
+        targetPath: gitops
+        values:
+          name: ${{ parameters.genesis.name }}
+          displayName: ${{ parameters.genesis.displayName }}
+          emoji: ${{ parameters.genesis.emoji }}
+          description: ${{ parameters.genesis.description }}
+          role: ${{ parameters.genesis.role }}
+          capabilities: []
+          systemPrompt: ${{ parameters.genesis.systemPrompt }}
+          provider: ${{ parameters.genesis.provider }}
+          modelName: ${{ parameters.genesis.modelName }}
+          routerRef: ''
+          apiKey: ${{ parameters.genesis.apiKey }}
+          compose: ${{ parameters.genesis.compose }}
+          createNewKnowledgeBase: false
+          newKnowledgeBaseTopic: ''
+          discordChannelUrl: ''
+          namespace: agent-office
+          runtimeMode: shared
+          gatewayRef: research-gateway
+          owner: user:default/deanpeterson
+          ghOwner: enterprisewebservice
+          repoURL: https://github.com/enterprisewebservice/${{ parameters.genesis.name }}-agent-gitops
+          defaultBranch: main
+          argoNS: openshift-gitops
+          argoProject: agent-office
+
+    # 2. Publish the gitops repo.
+    - id: publish-gitops
+      name: Publish GitOps Repository
+      action: publish:github
+      input:
+        repoUrl: github.com?owner=enterprisewebservice&repo=${{ parameters.genesis.name }}-agent-gitops
+        sourcePath: gitops
+        defaultBranch: main
+        repoVisibility: public
+        gitAuthorName: Dean Peterson
+        gitAuthorEmail: deanpeterson@users.noreply.github.com
+        description: 'GitOps manifests for OpenClaw agent: ${{ parameters.genesis.displayName }} (one-step genesis)'
+
+    - id: wait-repo
+      name: Wait for Repository
+      action: debug:wait
+      input:
+        seconds: 3
+
+    # ArgoCD: the agent-office-agents ApplicationSet discovers the repo
+    # via its marker file — no scaffolder step, race-free, declarative.
+
+    # 3. Register in the catalog (binders card mounts on the entity).
+    - id: catalog-register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish-gitops'].output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+
+  output:
+    links:
+      - title: GitOps Repository
+        url: ${{ steps['publish-gitops'].output.remoteUrl }}
+      - title: Open in Catalog
+        icon: catalog
+        entityRef: ${{ steps['catalog-register'].output.entityRef }}

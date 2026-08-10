@@ -13,6 +13,7 @@ spec:
   - ./templates/nodejs/template.yaml
   - ./templates/python/template.yaml
   - ./templates/openclaw-agent/template.yaml
+  - ./templates/openclaw-agent-genesis/template.yaml
   - ./templates/karpathy-research-agent/template.yaml
   # Integration-test / demo suite Component (lives in the agent-office
   # gitops repo). Absolute target — this Location has no kind rules, so
