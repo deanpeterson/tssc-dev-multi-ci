@@ -20,8 +20,8 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: openclaw-agent-genesis
-  title: OpenClaw Agent (one step)
+  name: openclaw-agent
+  title: OpenClaw Agent
   description: >-
     Describe the job; the platform composes the agent from the catalog —
     skills, governed tools, knowledge — drafts its identity, and deploys

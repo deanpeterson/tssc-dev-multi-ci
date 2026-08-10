@@ -1,8 +1,8 @@
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
-  name: openclaw-agent
-  title: OpenClaw Agent (standard)
+  name: openclaw-agent-advanced
+  title: OpenClaw Agent (advanced — every option)
   description: >-
     Deploy a standard OpenClaw AI agent on OpenShift via GitOps. For
     PM agents, role-specific agents, KB-curating agents, Discord-bound
