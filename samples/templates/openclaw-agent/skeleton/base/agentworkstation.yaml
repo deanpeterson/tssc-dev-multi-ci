@@ -68,19 +68,16 @@ spec:
   runtime:
     shared:
       browserProfile: ${{ values.name }}
-{%- if values.runtimeMode == "dedicated" %}
-      # Dedicated — this agent runs on its OWN gateway, declared as a
-      # sibling AgentGateway/${{ values.name }} in this same repo
-      # (base/agentgateway.yaml). A dedicated gateway is just "a gateway
-      # with one agent": point another agent's gatewayRef here to add
-      # more agents to the same pod later. Deleting this agent (pruning
-      # this repo) removes both the agent and its gateway.
-      gatewayRef: ${{ values.name }}
-{%- else %}
-      # Shared — this agent joins an existing, long-lived gateway as a
-      # persona (lighter; shares the browser profile + channels).
+      # ONE reference either way: the TEAM this agent works on. Suggest
+      # decides whether that team already exists — when it does this
+      # joins it; when it does not, the sibling AgentGateway in this repo
+      # creates it under this same name, so the next agent pointed here
+      # joins instead of forking.
+      #
+      # Naming the gateway after the team rather than the founding agent
+      # is what makes that work. A team called after whoever happened to
+      # be first reads wrong the moment a second agent arrives.
       gatewayRef: ${{ values.gatewayRef }}
-{%- endif %}
 
 {%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
 {%- set mcps = values.compose.mcpServers or [] %}

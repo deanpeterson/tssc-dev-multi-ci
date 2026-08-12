@@ -15,7 +15,7 @@ commonLabels:
 
 resources:
   - agentworkstation.yaml
-{%- if values.runtimeMode == "dedicated" %}
+{%- if values.runtimeMode == "dedicated" or values.createGateway %}
   # Dedicated runtime — this agent brings its OWN gateway, declared as a
   # sibling AgentGateway here (instead of joining research-gateway). The
   # operator never mints a gateway; it's a plain declarative resource in

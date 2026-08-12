@@ -1,0 +1,37 @@
+# Backstage Component entity for the PM agent. RHDH's catalog
+# discovers this on the gitops repo and mounts the binders plugin's
+# AgentBindingsCard on the entity overview page.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.name }}
+  title: "${{ values.displayName }}"
+  description: ${{ values.description }}
+  links:
+    - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.ghOwner }}/${{ values.name }}-pm-agent-gitops"
+      title: "Open GitOps in Dev Spaces"
+      icon: catalog
+      type: devspaces
+  annotations:
+    # ArgoCD app this entity is managed by.
+    argocd/app-name: ${{ values.name }}-pm-agent
+    # K8s namespace + entity discrimination annotations the operator's
+    # backstage-catalog endpoint writes for filtering.
+    backstage.io/kubernetes-id: ${{ values.name }}
+    agentoffice.ai/agent-kind: pm
+    # The binders plugin uses this to know which AgentWorkstation CR
+    # to manage from this entity's page. For a 1:1 entity↔AW mapping
+    # like this one, redundant with the entity name — but explicit
+    # makes the binders plugin robust to future renames.
+    agentoffice.ai/agentworkstation-name: ${{ values.name }}
+    agentoffice.ai/namespace: ${{ values.namespace }}
+  tags:
+    - ai
+    - agent
+    - pm
+    - openclaw
+    - openshift
+spec:
+  type: ai-agent
+  owner: ${{ values.owner }}
+  lifecycle: ${{ values.lifecycle }}

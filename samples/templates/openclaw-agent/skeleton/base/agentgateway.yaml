@@ -1,5 +1,5 @@
-{%- if values.runtimeMode == "dedicated" %}
-# Dedicated gateway for ${{ values.name }}.
+{%- if values.runtimeMode == "dedicated" or values.createGateway %}
+# Gateway for the ${{ values.gatewayRef }} team, founded by ${{ values.name }}.
 #
 # Declared HERE, in the agent's own gitops repo — NOT minted by the
 # operator — so the gateway is a first-class, declarative resource that's
@@ -10,16 +10,18 @@
 # Pruning this repo removes BOTH the agent and this gateway (the
 # AgentGateway controller cascades its own Pod / PVC / Service / Route).
 #
-# A dedicated gateway is just "a gateway with one agent" — point another
-# AgentWorkstation's gatewayRef at "${{ values.name }}" and it joins this
-# same gateway pod. The operator treats that identically to any shared
-# agent; there is no dedicated-vs-shared code path.
+# A new team starts as "a gateway with one agent" — point another
+# AgentWorkstation's gatewayRef at "${{ values.gatewayRef }}" and it
+# joins this same gateway pod. The operator treats that identically to
+# any shared agent; there is no dedicated-vs-shared code path.
 #
 # namespace + commonLabels are applied by base/kustomization.yaml.
 apiVersion: agentoffice.ai/v1alpha1
 kind: AgentGateway
 metadata:
-  name: ${{ values.name }}
+  # Named for the TEAM, not the founding agent, so the second agent to
+  # arrive reads as a colleague rather than a guest in someone's gateway.
+  name: ${{ values.gatewayRef }}
 spec:
   displayName: ${{ values.displayName }}
   description: "Dedicated gateway for agent ${{ values.name }}"

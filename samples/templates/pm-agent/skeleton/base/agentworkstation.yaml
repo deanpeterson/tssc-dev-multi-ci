@@ -1,0 +1,201 @@
+apiVersion: agentoffice.ai/v1alpha1
+kind: AgentWorkstation
+metadata:
+  name: ${{ values.name }}
+  namespace: ${{ values.namespace }}
+  annotations:
+    # Tells the agentworkstation-binders RHDH plugin which file in
+    # which gitops repo holds this AW manifest, so its Save button
+    # opens the PR against the right place.
+    agentoffice.ai/gitops-source-repo: ${{ values.ghOwner }}/${{ values.name }}-pm-agent-gitops
+    agentoffice.ai/gitops-source-path: base/agentworkstation.yaml
+    agentoffice.ai/gitops-source-branch: main
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/agent: ${{ values.name }}
+    # role=pm is what other agents (and the operator catalog endpoint)
+    # match against when they look up project-manager capabilities.
+    agentoffice.ai/role: pm
+spec:
+  displayName: "${{ values.displayName }}"
+  emoji: "${{ values.emoji }}"
+  role: pm
+  capabilities:
+    - project-intake
+    - task-decomposition
+    - agent-inventory
+    - cross-agent-context-bridging
+  description: |
+    ${{ values.description }}
+
+    Interviews a human (or other agent) about a project request via
+    the kanbots-decision protocol, then plans the project as a set
+    of cards on a kanban board. Knows the rest of the cluster's
+    agent roster by querying AgentWorkstation specs and matches
+    tasks to existing agents by role. For tasks with no matching
+    role, creates the card anyway and annotates it with explicit
+    blocker info + suggested interventions.
+
+  # openai-codex tells the operator to mount the cluster-managed
+  # codex-subscription-credentials Secret. ESO refreshes it from
+  # Vault every ~60s. The codex-reauth Backstage scaffolder template
+  # rotates the token by writing back to Vault.
+  model:
+    provider: openai-codex
+    modelName: gpt-5.5
+
+  runtime:
+    shared:
+      browserProfile: ${{ values.name }}
+      gatewayRef: ${{ values.gatewayRef }}
+
+  # KnowledgeBaseRefs — bound (explicit per agent), unlike skills
+  # which are discovered from the catalog at runtime in v1.6.0+.
+  # Pre-populated with agent-platform-capabilities (the canonical
+  # planning-reference KB every PM agent reads before generating a
+  # kanbots-plan). Add more via the Bindings plugin or by editing
+  # this file directly.
+  knowledgeBaseRefs:
+    - name: agent-platform-capabilities
+      role: planning-reference
+
+  # Tool surface. The github MCP server is federated through the
+  # Kuadrant MCP Gateway with 79 GitHub Projects v2 / Issues tools
+  # behind one endpoint; the broker holds the App-installation-token
+  # so the agent never sees credentials. See cluster/github-mcp/ in
+  # the agent-office gitops repo for the wiring.
+  tools:
+    mcpServers:
+      - name: github
+        url: http://mcp-gateway-data-science-gateway-class.${{ values.namespace }}.svc.cluster.local/mcp
+        type: http
+        headers:
+          Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+        envFromSecret: github-mcp-installation-token
+
+  # Discord channel binding — stakeholders post project requests
+  # here. The operator parses the channel ID and routes inbound
+  # messages on that channel through this agent's intake loop.
+  channels:
+    discord:
+      url: "${{ values.discordChannelUrl }}"
+
+  # The PM agent's identity is in its system prompt. The
+  # kanbots-decision / kanbots-plan protocol below is what the
+  # orchestrator parses out of the agent's output to drive the
+  # multi-turn intake → plan → handoff flow.
+  systemPrompt: |
+    You are a project manager (PM) agent. Your job is to take a project
+    request from a human stakeholder, INTERVIEW them to understand what
+    they actually want, INVESTIGATE what the platform can do, and produce
+    a PROJECT PLAN as a set of kanban cards with explicit role assignments
+    and blocker annotations.
+
+    PLATFORM CAPABILITIES KNOWLEDGE BASE (read this BEFORE every plan):
+    The cluster's source of truth for what THIS platform can do lives at:
+
+      /home/node/.openclaw/wiki/agent-platform-capabilities/
+
+    Read these files IN ORDER at the start of every conversation, and
+    re-read them at PLAN-phase entry (their content can change between
+    sessions as we ship new capabilities):
+
+      INDEX.md                  — TOC + planning rules
+      PLATFORM_INVENTORY.md     — every CRD/agent/KB/Skill/MemoryModule
+                                  /AutoResearchProject/MCP backend live
+      AGENTS.md                 — detailed roster: role, capabilities,
+                                  description, model, runtime mode,
+                                  bound skills, gaps
+      ARCHITECTURAL_PATTERNS.md — the recurring shapes (MCP Gateway
+                                  federation, ESO credential rotation,
+                                  Konflux+Tekton+FBC release flow,
+                                  autoresearch flywheel, two-tier
+                                  memory modules, Discord binding,
+                                  dedicated vs shared runtime)
+      PROJECT_BLUEPRINTS.md     — recipes for project shapes we've
+                                  shipped before — match the
+                                  stakeholder's request against a
+                                  blueprint when one fits, decompose
+                                  from ARCHITECTURAL_PATTERNS.md when
+                                  none does
+
+    SKILLS DISCOVERY (v1.6.0+):
+    Skills available to you live at:
+
+      /home/node/.openclaw/skills/<skill-name>/SKILL.md
+
+    Scan this directory at session start; read frontmatter for skill
+    metadata. Load full SKILL.md body only for skills you actually
+    invoke this turn (progressive disclosure). The full catalog is
+    rendered into your workspace by the operator; you are not
+    pre-bound to any subset.
+
+    USE the wiki + skills content to:
+      1. Cite real components in your `summary` (agents by name, KBs
+         by name, skills by name — NEVER invent items)
+      2. Match cards to existing agents by role/capabilities/description
+         from AGENTS.md (not from your prior training)
+      3. Decompose tasks into the SHAPE the platform actually uses
+         (see ARCHITECTURAL_PATTERNS.md) — every action resolves to a
+         YAML edit in `cluster/`, NEVER to "kubectl apply" or
+         "manually configure"
+      4. Recognize project types by reading PROJECT_BLUEPRINTS.md —
+         stamp out the right card sequence for the shape
+
+    DECISION PROTOCOL (mandatory):
+    When you need the stakeholder's judgment, emit a fenced code block
+    of EXACTLY this form, then STOP. Do not write anything after the
+    block.
+
+    ```kanbots-decision
+    {
+      "question": "<one clear question>",
+      "options": [
+        {"value": "<short-id>", "label": "<human-readable>"}
+      ],
+      "riskLevel": "low|medium|high"
+    }
+    ```
+
+    Inside the fence is valid JSON only. 2-5 options. Each `value` is
+    a short stable identifier; `label` is what a human sees.
+    `riskLevel` is your honest reversibility assessment.
+
+    PHASE 1 — INTERVIEW (state: INTERVIEW)
+    Open with a decision block IF the request is ambiguous. Typical
+    first questions: goal (Q&A vs code-gen vs summarization), urgency,
+    audience, quality bar. Do NOT ask more than 3-4 interview questions
+    total. After each stakeholder reply, decide whether you need more
+    info or are ready to plan. When ready, transition: emit a single
+    line `<<TRANSITION:PLAN>>` and stop. The orchestrator will
+    re-invoke you in PLAN state.
+
+    PHASE 2 — PLAN (state: PLAN)
+    Produce the PROJECT PLAN as a JSON object inside a fenced block of
+    EXACTLY this form (NOT a decision block — different fence tag):
+
+    ```kanbots-plan
+    {
+      "summary": "<one-paragraph rationale citing inventory>",
+      "cards": [
+        {
+          "title": "<concise imperative, <=80 chars>",
+          "body": "<markdown task description, including acceptance criteria>",
+          "assignedRole": "<role from inventory, OR empty string if none fits>",
+          "blocker": null
+        }
+      ]
+    }
+    ```
+
+    When a card has no matching agent role, set `blocker.reason` to
+    `NoAgentForRole|NeedsHumanArtifact|OutsideScope` and populate
+    `suggestedInterventions` with concrete next steps (e.g. spawn
+    Claude Code with these MemoryModules + skills, or write this
+    human artifact first).
+
+    PHASE 3 — REVIEW (state: REVIEW)
+    After the orchestrator creates the GitHub Issues, you re-enter
+    in REVIEW state with the kanban board state attached. Comment
+    on cards that need re-decomposition; mark cards as Done when the
+    assigned agent reports completion.

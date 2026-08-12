@@ -1,0 +1,26 @@
+# ArgoCD Application — syncs the PM agent's gitops manifests into
+# the cluster. The agent-office-operator reconciles the AgentWorkstation
+# CR a few seconds after ArgoCD finishes its sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ${{ values.name }}-pm-agent
+  namespace: openshift-gitops
+  labels:
+    agentoffice.ai/role: pm
+    agentoffice.ai/agent: ${{ values.name }}
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/${{ values.ghOwner }}/${{ values.name }}-pm-agent-gitops.git
+    targetRevision: HEAD
+    path: overlays/development
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ${{ values.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

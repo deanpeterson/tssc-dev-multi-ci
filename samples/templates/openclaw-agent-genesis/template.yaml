@@ -73,7 +73,18 @@ spec:
           discordChannelUrl: ''
           namespace: agent-office
           runtimeMode: shared
-          gatewayRef: research-gateway
+          # The TEAM, chosen by Suggest (operator >= v1.7.32) — not a
+          # dropdown. A gateway is a shared runtime, a shared browser
+          # node and one blast radius, so which one an agent joins is a
+          # platform decision made from the description, exactly like
+          # the packs. research-gateway stays as the floor for an older
+          # operator that returns no team at all.
+          gatewayRef: ${{ parameters.agent.gatewayRef if parameters.agent.gatewayRef else 'research-gateway' }}
+          # True when Suggest found no existing crew doing this work
+          # (operator >= v1.7.33). The skeleton then ships an
+          # AgentGateway named for the TEAM alongside the agent, so the
+          # next agent routed here joins it instead of founding a rival.
+          createGateway: ${{ (parameters.agent.team.existing == false) if parameters.agent.team else false }}
           owner: user:default/deanpeterson
           ghOwner: enterprisewebservice
           repoURL: https://github.com/enterprisewebservice/${{ parameters.agent.name }}-agent-gitops
