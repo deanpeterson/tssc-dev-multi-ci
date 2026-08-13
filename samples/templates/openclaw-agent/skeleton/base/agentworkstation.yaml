@@ -99,14 +99,29 @@ spec:
 {%- endif %}
 {%- endif %}
 
-{%- if mcps | length > 0 %}
-  # MCP servers — chosen in the wizard's "Compose" page (Tools / MCP
-  # tab of the AgentComposer binder field). Each is reachable through
-  # the Kuadrant MCP Gateway. For the github preset the broker holds
-  # the GitHub App installation token (rotated every 30m via ESO from
-  # Vault), so this agent never sees the credential.
+  # MCP servers. The governed gateway is ALWAYS wired, then anything the
+  # wizard's Compose page added.
+  #
+  # Always, because gateway MCP config is shared by every agent in a
+  # gateway pod — so an agent that declares nothing inherits whatever a
+  # neighbour happened to declare. ops-reporter only ever worked because
+  # forge-dev sat beside it on research-gateway and wired the gateway. The
+  # moment Suggest founded a team of its own, Morgan's agent came up alone
+  # with no tools and answered "I couldn't run the report" — correct, and
+  # useless.
+  #
+  # Connecting is not a privilege: the Kuadrant gateway IS the governance
+  # point, and what an agent may call is policy enforced there. The broker
+  # holds the credentials (the GitHub App token is rotated every 30m via
+  # ESO from Vault), so the agent never sees one.
   tools:
     mcpServers:
+      - name: governed
+        url: http://mcp-gateway-data-science-gateway-class.agent-office.svc.cluster.local/mcp
+        type: http
+        headers:
+          Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+        envFromSecret: github-mcp-installation-token
 {%- for s in mcps %}
       - name: ${{ s.name }}
         url: ${{ s.url }}
@@ -119,7 +134,6 @@ spec:
         envFromSecret: ${{ s.envFromSecret }}
 {%- endif %}
 {%- endfor %}
-{%- endif %}
 
 {%- if values.discordChannelUrl %}
   channels:
