@@ -2,11 +2,17 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: ${{ values.name }}
-  title: ${{ values.displayName }}
+  title: ${{ values.displayName | dump }}
   # Backstage rejects a null description ("/metadata/description must be
   # string"), so an empty form field must still render a real string —
   # fall back to a generated one. default(x, true) treats "" as falsy.
-  description: ${{ values.description | default("OpenClaw agent: " + values.displayName, true) }}
+  # dump, because this is a HUMAN sentence landing in YAML. Morgan's own
+  # description -- "Every Monday replace my spreadsheet: totals, revenue,
+  # stuck orders and top products." -- contains a colon, which unquoted YAML
+  # reads as a nested mapping. Every registration of that agent died with a
+  # 400 at Register in Catalog, on camera, while agents whose descriptions
+  # happened to avoid colons sailed through.
+  description: ${{ values.description | default("OpenClaw agent: " + values.displayName, true) | dump }}
   links:
     - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.ghOwner }}/${{ values.name }}-agent-gitops"
       title: "Open in Dev Spaces"
