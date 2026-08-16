@@ -115,6 +115,13 @@ spec:
   # holds the credentials (the GitHub App token is rotated every 30m via
   # ESO from Vault), so the agent never sees one.
   tools:
+    # Built-in tool allow-list. Without an explicit list the runtime's default
+    # profile applies and web_search is NOT among it — an agent created by this
+    # template could web_fetch a URL it already knew but could not DISCOVER
+    # anything (found 2026-08-16: the upstreambeat newsroom's reporter swept
+    # only the GitHub release pages it had been told about). web_search is
+    # bundled (duckduckgo, no key). browser/canvas are added by their packs.
+    allow: [memory, web_search, web_fetch]
     mcpServers:
       - name: governed
         url: http://mcp-gateway-data-science-gateway-class.agent-office.svc.cluster.local/mcp
