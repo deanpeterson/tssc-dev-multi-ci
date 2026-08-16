@@ -120,8 +120,9 @@ spec:
     # template could web_fetch a URL it already knew but could not DISCOVER
     # anything (found 2026-08-16: the upstreambeat newsroom's reporter swept
     # only the GitHub release pages it had been told about). web_search is
-    # bundled (duckduckgo, no key). browser/canvas are added by their packs.
-    allow: [memory, web_search, web_fetch]
+    # bundled (duckduckgo, no key). browser = the real Chromium on the paired VM
+    # node-host (see agentgateway.yaml nodeHostRef).
+    allow: [memory, web_search, web_fetch, browser]
     mcpServers:
       - name: governed
         url: http://mcp-gateway-data-science-gateway-class.agent-office.svc.cluster.local/mcp
