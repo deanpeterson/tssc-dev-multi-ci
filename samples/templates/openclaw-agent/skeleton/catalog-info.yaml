@@ -13,13 +13,22 @@ metadata:
   # 400 at Register in Catalog, on camera, while agents whose descriptions
   # happened to avoid colons sailed through.
   description: ${{ values.description | default("OpenClaw agent: " + values.displayName, true) | dump }}
+{%- if values.gitProvider != "gitea" %}
+  {#- Salamander-only deep link (Dev Spaces + GitHub). Gitea workshop
+      clusters have neither, so the link block drops off there entirely.
+      Nunjucks comment on purpose: it must not render into agent repos,
+      keeping the GitHub output byte-identical to the pre-split skeleton. #}
   links:
     - url: "https://devspaces.apps.salamander.aimlworkbench.com/#https://github.com/${{ values.ghOwner }}/${{ values.name }}-agent-gitops"
       title: "Open in Dev Spaces"
       icon: catalog
       type: devspaces
+{%- endif %}
   annotations:
-    argocd/app-name: ${{ values.name }}-agent
+    {#- Falls back to <name>-agent (the GitHub path, unchanged); gitea
+        templates pass an org-prefixed argoAppName so two attendees'
+        same-named agents don't collide on one ArgoCD Application. #}
+    argocd/app-name: ${{ values.argoAppName | default(values.name + "-agent", true) }}
     backstage.io/kubernetes-id: ${{ values.name }}
     # v1.6.0 annotations the agentworkstation-binders RHDH plugin
     # reads. agentoffice.ai/agent-kind lights the Bindings card up

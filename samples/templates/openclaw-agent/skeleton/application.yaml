@@ -1,7 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ${{ values.name }}-agent
+  {#- Same fallback contract as the argocd/app-name annotation in
+      catalog-info.yaml: <name>-agent unless the template passes an
+      (org-prefixed) argoAppName, as the gitea path does. #}
+  name: ${{ values.argoAppName | default(values.name + "-agent", true) }}
   namespace: ${{ values.argoNS }}
   finalizers: ["resources-finalizer.argocd.argoproj.io"]
 spec:
