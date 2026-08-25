@@ -135,7 +135,7 @@ spec:
     #   gitea org — username + giteaOrgSuffix.
     #   the verdict — gitea iff forced, OR auto AND the cluster has a
     #               giteaHost AND the user entity carries keycloak.org/id:
-    #               (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id']))
+    #               (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf)))
     # Every github branch is the pre-split literal, unchanged.
     - id: fetch-gitops
       name: Fetch GitOps Skeleton
@@ -175,20 +175,20 @@ spec:
           createGateway: ${{ (parameters.agent.team.existing == false) if parameters.agent.team else false }}
           # Provider flag for skeleton conditionals (the Dev Spaces
           # deep-link is salamander-only and drops off on gitea).
-          gitProvider: ${{ 'gitea' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'github' }}
+          gitProvider: ${{ 'gitea' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'github' }}
           # Catalog owner: the attendee on gitea clusters; the platform
           # owner on the GitHub reference cluster, unchanged.
           owner: >-
-            ${{ 'user:default/' + (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'user:default/deanpeterson' }}
+            ${{ 'user:default/' + (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'user:default/deanpeterson' }}
           # Repo owner: the attendee's Gitea org / the GitHub org. Also
           # lands in the AW's gitops-source-repo annotation as the
           # owner/repo shorthand, which stays truthful on both providers.
           ghOwner: >-
-            ${{ (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'enterprisewebservice' }}
+            ${{ (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'enterprisewebservice' }}
           # Web URL of the gitops repo — the skeleton's application.yaml
           # embeds it (with .git) as the ArgoCD source repoURL.
           repoURL: >-
-            ${{ 'https://' + parameters.giteaHost + '/' + ((user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix) + '/' + parameters.agent.name + '-agent-gitops' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'https://github.com/enterprisewebservice/' + parameters.agent.name + '-agent-gitops' }}
+            ${{ 'https://' + parameters.giteaHost + '/' + ((user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix) + '/' + parameters.agent.name + '-agent-gitops' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'https://github.com/enterprisewebservice/' + parameters.agent.name + '-agent-gitops' }}
           # ArgoCD Application name. On gitea clusters the per-user org
           # prefixes it so two attendees can both hire a "morgan" without
           # their Applications colliding; MUST match what the gitea
@@ -196,7 +196,7 @@ spec:
           # {{ .organization }}-{{ trimSuffix "-gitops" .repository }}.
           # On GitHub it stays <name>-agent, exactly as before.
           argoAppName: >-
-            ${{ (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix + '-' + parameters.agent.name + '-agent' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else parameters.agent.name + '-agent' }}
+            ${{ (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + parameters.giteaOrgSuffix + '-' + parameters.agent.name + '-agent' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else parameters.agent.name + '-agent' }}
           defaultBranch: main
           argoNS: openshift-gitops
           argoProject: agent-office
@@ -205,7 +205,7 @@ spec:
     #     Byte-for-byte the pre-split step, now gated on the provider.
     - id: publish-gitops
       name: Publish GitOps Repository
-      if: ${{ 'false' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'true' }}
+      if: ${{ 'false' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'true' }}
       action: publish:github
       input:
         repoUrl: github.com?owner=enterprisewebservice&repo=${{ parameters.agent.name }}-agent-gitops
@@ -222,7 +222,7 @@ spec:
     #     hard-requires both). The commit is authored as the attendee.
     - id: publish-gitops-gitea
       name: Publish GitOps Repository (Gitea)
-      if: ${{ 'true' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else 'false' }}
+      if: ${{ 'true' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'false' }}
       action: publish:gitea
       input:
         repoUrl: >-
@@ -257,15 +257,15 @@ spec:
       action: catalog:register
       input:
         repoContentsUrl: >-
-          ${{ steps['publish-gitops-gitea'].output.repoContentsUrl if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else steps['publish-gitops'].output.repoContentsUrl }}
+          ${{ steps['publish-gitops-gitea'].output.repoContentsUrl if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else steps['publish-gitops'].output.repoContentsUrl }}
         catalogInfoPath: >-
-          ${{ 'catalog-info.yaml' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else '/catalog-info.yaml' }}
+          ${{ 'catalog-info.yaml' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else '/catalog-info.yaml' }}
 
   output:
     links:
       - title: GitOps Repository
         url: >-
-          ${{ steps['publish-gitops-gitea'].output.remoteUrl if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.metadata.annotations and user.entity.metadata.annotations['keycloak.org/id'])) else steps['publish-gitops'].output.remoteUrl }}
+          ${{ steps['publish-gitops-gitea'].output.remoteUrl if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else steps['publish-gitops'].output.remoteUrl }}
       - title: Open in Catalog
         icon: catalog
         entityRef: ${{ steps['catalog-register'].output.entityRef }}
