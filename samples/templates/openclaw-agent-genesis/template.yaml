@@ -46,7 +46,7 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: openclaw-agent-create
-  title: OpenClaw Agent
+  title: OpenClaw Agent (GitHub direct)
   description: >-
     Describe the job; the platform composes the agent from the catalog —
     skills, governed tools, knowledge — drafts its identity, and deploys
@@ -86,11 +86,17 @@ spec:
             giteaHost is set, everyone else to GitHub — both providers
             serve simultaneously. github/gitea force a side (tests,
             migration).
+            THIS registration ships default github — structurally
+            GitHub-only, because with no giteaHost a flaky step-if once
+            fired the gitea publish with an empty host (user1 hire,
+            2026-08-25). The workshop mirror rewrite flips the default
+            back to auto alongside setting giteaHost, so routing lives
+            only where a Gitea actually exists.
           enum:
             - auto
             - github
             - gitea
-          default: auto
+          default: github
           ui:widget: hidden
           ui:backstage:
             review:
