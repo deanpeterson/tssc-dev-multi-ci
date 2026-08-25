@@ -165,7 +165,11 @@ spec:
           createNewKnowledgeBase: false
           newKnowledgeBaseTopic: ''
           discordChannelUrl: ''
-          namespace: agent-office
+          # Attendee hires land in the attendee's own workspace namespace
+          # (<user>-agent-workspace, pre-created by the deployer with the
+          # attendee's RoleBinding and a workspace-local Codex secret);
+          # GitHub-route hires keep the shared agent-office namespace.
+          namespace: ${{ (user.entity.metadata.name if user.entity.metadata.name else user.ref | parseEntityRef | pick('name')) + '-agent-workspace' if (parameters.gitProvider === 'gitea' or (parameters.gitProvider === 'auto' and parameters.giteaHost and user.entity.spec and user.entity.spec.memberOf and ('attendees' in user.entity.spec.memberOf or 'group:default/attendees' in user.entity.spec.memberOf))) else 'agent-office' }}
           runtimeMode: shared
           # The TEAM, chosen by Suggest (operator >= v1.7.32) — not a
           # dropdown. A gateway is a shared runtime, a shared browser
