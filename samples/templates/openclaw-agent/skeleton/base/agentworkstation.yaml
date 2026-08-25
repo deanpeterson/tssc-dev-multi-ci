@@ -128,15 +128,18 @@ spec:
         url: http://mcp-gateway-data-science-gateway-class.agent-office.svc.cluster.local/mcp
         type: http
 {%- if values.gitProvider == "gitea" %}
-        # Gitea-published hire (workshop seat): NO GitHub credential — the
-        # platform's GitHub App token is not this tenant's to carry, and the
-        # gateway accepts credential-less calls (the bearer is pass-through
-        # material for github_* tools, not gateway authn — verified live
-        # 2026-08-25). Credential-free governed tools (find-token,
-        # golden-path-probe, ops-metrics) work as-is. When the gitea-mcp
-        # server is registered, this arm gains:
-        #   Authorization: "Bearer ${GITEA_TOKEN}" + envFromSecret
-        #   <user>-gitea-token — the seat's own platform-held credential.
+        # Gitea-published hire (workshop seat): the seat's OWN credential,
+        # not the platform's — the GitHub App token is not this tenant's to
+        # carry. The bearer is pass-through material consumed by the governed
+        # gitea-mcp backend on the call path (gitea_* tools act AS this
+        # seat's Gitea user; a call without it fails closed — verified live
+        # 2026-08-25). The Secret is <user>-gitea-token in the seat's
+        # workspace (key GITEA_TOKEN), minted by the deployer's gitea stage
+        # and replicated beside quay-pull-secret; <user> is the seat that
+        # owns this namespace, so it is derived from values.namespace.
+        headers:
+          Authorization: "Bearer ${GITEA_TOKEN}"
+        envFromSecret: ${{ values.namespace | replace('-agent-workspace', '') }}-gitea-token
 {%- else %}
         headers:
           Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
