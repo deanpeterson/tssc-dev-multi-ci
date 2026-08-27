@@ -44,7 +44,7 @@ metadata:
     - agent
     - openclaw
 {%- if values.role %}
-    - ${{ values.role }}
+    - ${{ values.role | lower | replace(' ', '-') | replace('_', '-') }}
 {%- endif %}
 spec:
   type: ai-agent
