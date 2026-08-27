@@ -145,7 +145,11 @@ spec:
           Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
         envFromSecret: github-mcp-installation-token
 {%- endif %}
+{#- The gitea entry is owned by the provider-conditional block above;
+    a composed gitea recipe would duplicate it with a seat-agnostic
+    placeholder secret the scaffolder rightly never substitutes. -#}
 {%- for s in mcps %}
+{%- if s.name != "gitea" %}
       - name: ${{ s.name }}
         url: ${{ s.url }}
         type: ${{ s.type | default("http", true) }}
@@ -155,6 +159,7 @@ spec:
 {%- endif %}
 {%- if s.envFromSecret %}
         envFromSecret: ${{ s.envFromSecret }}
+{%- endif %}
 {%- endif %}
 {%- endfor %}
 
