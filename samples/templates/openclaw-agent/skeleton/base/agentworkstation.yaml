@@ -41,7 +41,16 @@ spec:
   image: quay-quay-quay-test.apps.salamander.aimlworkbench.com/deanpeterson/openclaw:v2026.7.1
   model:
     provider: ${{ values.provider }}
-{%- if values.provider == "openai-codex" %}
+{%- if values.connectionRef %}
+    # Admin-published ModelConnection (cluster-scoped; operator >=
+    # v1.7.58). The operator renders the matching provider block on
+    # this agent's gateway and projects the key from the admin
+    # namespace — this CR never holds credentials. Provider `custom`
+    # is the vehicle: with a resolvable connectionRef the operator
+    # keys the model string as <connection>/<modelName>.
+    connectionRef: ${{ values.connectionRef }}
+    modelName: ${{ values.modelName }}
+{%- elif values.provider == "openai-codex" %}
     # `openai-codex` states intent: bill this agent to the ChatGPT/Codex
     # subscription. agent-office-operator >= v1.7.6 canonicalizes it to
     # `openai` when rendering the model string (OpenClaw 2026.7.x rejects

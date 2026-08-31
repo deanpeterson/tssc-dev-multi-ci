@@ -159,6 +159,9 @@ spec:
           systemPrompt: ${{ parameters.agent.systemPrompt }}
           provider: ${{ parameters.agent.provider }}
           modelName: ${{ parameters.agent.modelName }}
+          # Admin-published ModelConnection (operator >= v1.7.58) the
+          # brain choice rides; empty for subscription/apiKey presets.
+          connectionRef: ${{ parameters.agent.connectionRef }}
           routerRef: ''
           apiKey: ${{ parameters.agent.apiKey }}
           compose: ${{ parameters.agent.compose }}
