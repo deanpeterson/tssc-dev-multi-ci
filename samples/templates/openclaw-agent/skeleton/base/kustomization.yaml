@@ -15,11 +15,6 @@ commonLabels:
 
 resources:
   - agentworkstation.yaml
-{%- set regskills = (values.packs or []) | selectattr("type", "equalto", "skill") | rejectattr("installed") | list %}
-{%- if regskills | length > 0 %}
-  # Registry skills this hire chose, one Skill resource each (skills.yaml).
-  - skills.yaml
-{%- endif %}
 {%- if values.runtimeMode == "dedicated" or values.createGateway %}
   # Dedicated runtime — this agent brings its OWN gateway, declared as a
   # sibling AgentGateway here (instead of joining research-gateway). The

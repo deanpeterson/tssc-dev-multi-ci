@@ -91,19 +91,23 @@ spec:
 {%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
 {%- set mcps = values.compose.mcpServers or [] %}
 {%- set packs = values.packs or [] %}
-{%- set skillpacks = packs | selectattr("type", "equalto", "skill") | list %}
-{%- if skillpacks | length > 0 %}
+{#- Nunjucks (the scaffolder's engine) ignores selectattr's value arguments,
+    so type filtering is done with plain ifs, and "is there any skill pack"
+    is a substring test on the packs' JSON. -#}
+{%- if '"type":"skill"' in (packs | dump) %}
   # Skills — this agent's OWN list (operator >= v1.7.68). Exactly these are
   # seeded into its workspace: platform skills resolve from the baked
-  # catalog, registry skills from the Skill resources this repo declares in
-  # skills/. Nothing else in the namespace reaches this agent, and a name
-  # that resolves nowhere is reported in the workstation's status rather
-  # than silently skipped. Remove a row here and the agent forgets it.
+  # catalog, registry skills from the Skill resources declared below in
+  # this same file. Nothing else in the namespace reaches this agent, and
+  # a name that resolves nowhere is reported in the workstation's status
+  # rather than silently skipped. Remove a row here and the agent forgets it.
   skillRefs:
-{%- for sk in skillpacks %}
+{%- for sk in packs %}
+{%- if sk.type == "skill" %}
     - name: ${{ sk.name }}
 {%- if not sk.installed and sk.version %}
       version: "${{ sk.version }}"
+{%- endif %}
 {%- endif %}
 {%- endfor %}
 {%- endif %}
@@ -193,3 +197,45 @@ spec:
     discord:
       url: "${{ values.discordChannelUrl }}"
 {%- endif %}
+{#- Registry skills the hire chose — each becomes a Skill resource in the
+    agent's namespace, by reference (a versioned registry coordinate the
+    operator fetches and verifies), never by copy. Platform skills need no
+    resource: the operator resolves them from the catalog by name. -#}
+{%- for sk in values.packs or [] %}
+{%- if sk.type == "skill" and not sk.installed %}
+---
+apiVersion: agentoffice.ai/v1alpha1
+kind: Skill
+metadata:
+  name: ${{ sk.name }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/skill-tier: ${{ sk.tier | default("registry", true) }}
+  annotations:
+    agentoffice.ai/registry: ${{ sk.registry | default("", true) }}
+    agentoffice.ai/pack-ref: ${{ sk.namespace | default("agent-office", true) }}/${{ sk.name }}:${{ sk.version }}
+{%- if sk.manifest %}
+    agentoffice.ai/manifest: ${{ sk.manifest }}
+{%- endif %}
+spec:
+  displayName: ${{ sk.displayName | default(sk.name, true) | dump }}
+  description: ${{ sk.description | default("", true) | dump }}
+  version: "${{ sk.version }}"
+{%- if sk.dependencies %}
+  dependencies:
+{%- for d in sk.dependencies %}
+    - kind: ${{ d.kind }}
+      name: ${{ d.name }}
+{%- endfor %}
+{%- endif %}
+  source:
+    packageRef:
+      # "<namespace>/<name>:<version>" resolves against the platform's skills
+      # registry federation (mindifact.ai first); the operator follows the
+      # manifest to the content and caches it by version.
+      ref: ${{ sk.namespace | default("agent-office", true) }}/${{ sk.name }}:${{ sk.version }}
+{%- if sk.contentSha256 %}
+      digest: ${{ sk.contentSha256 }}
+{%- endif %}
+{%- endif %}
+{%- endfor %}
