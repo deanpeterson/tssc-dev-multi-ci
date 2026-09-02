@@ -1,0 +1,44 @@
+{#-
+  Registry skills the hire chose — each becomes a Skill resource in the
+  agent's namespace, by reference (a versioned registry coordinate the
+  operator fetches and verifies), never by copy. Platform skills (already
+  in the baked catalog / platform namespace) need no resource here; the
+  operator resolves them from the catalog by name.
+-#}
+{%- set packs = values.packs or [] %}
+{%- for sk in packs | selectattr("type", "equalto", "skill") | rejectattr("installed") %}
+---
+apiVersion: agentoffice.ai/v1alpha1
+kind: Skill
+metadata:
+  name: ${{ sk.name }}
+  labels:
+    app.kubernetes.io/managed-by: agent-office
+    agentoffice.ai/skill-tier: ${{ sk.tier | default("registry", true) }}
+  annotations:
+    agentoffice.ai/registry: ${{ sk.registry | default("", true) }}
+    agentoffice.ai/pack-ref: ${{ sk.namespace | default("agent-office", true) }}/${{ sk.name }}:${{ sk.version }}
+{%- if sk.manifest %}
+    agentoffice.ai/manifest: ${{ sk.manifest }}
+{%- endif %}
+spec:
+  displayName: ${{ sk.displayName | default(sk.name, true) | dump }}
+  description: ${{ sk.description | default("", true) | dump }}
+  version: "${{ sk.version }}"
+{%- if sk.dependencies %}
+  dependencies:
+{%- for d in sk.dependencies %}
+    - kind: ${{ d.kind }}
+      name: ${{ d.name }}
+{%- endfor %}
+{%- endif %}
+  source:
+    packageRef:
+      # "<namespace>/<name>:<version>" resolves against the platform's skills
+      # registry federation (mindifact.ai first); the operator follows the
+      # manifest to the content and caches it by version.
+      ref: ${{ sk.namespace | default("agent-office", true) }}/${{ sk.name }}:${{ sk.version }}
+{%- if sk.contentSha256 %}
+      digest: ${{ sk.contentSha256 }}
+{%- endif %}
+{%- endfor %}

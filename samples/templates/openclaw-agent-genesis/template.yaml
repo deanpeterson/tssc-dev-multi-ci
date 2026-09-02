@@ -165,6 +165,11 @@ spec:
           routerRef: ''
           apiKey: ${{ parameters.agent.apiKey }}
           compose: ${{ parameters.agent.compose }}
+          # The packs Suggest composed (skills, tools, knowledge). The skeleton
+          # turns the skill rows into spec.skillRefs — the agent's OWN skill list
+          # (operator >= v1.7.68) — and a Skill resource for each registry skill,
+          # so what the constellation drew is what the runtime delivers.
+          packs: ${{ parameters.agent.packs }}
           createNewKnowledgeBase: false
           newKnowledgeBaseTopic: ''
           discordChannelUrl: ''

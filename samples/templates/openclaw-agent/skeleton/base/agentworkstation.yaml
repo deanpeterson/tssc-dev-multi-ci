@@ -90,13 +90,29 @@ spec:
 
 {%- set kbrefs = values.compose.knowledgeBaseRefs or [] %}
 {%- set mcps = values.compose.mcpServers or [] %}
+{%- set packs = values.packs or [] %}
+{%- set skillpacks = packs | selectattr("type", "equalto", "skill") | list %}
+{%- if skillpacks | length > 0 %}
+  # Skills — this agent's OWN list (operator >= v1.7.68). Exactly these are
+  # seeded into its workspace: platform skills resolve from the baked
+  # catalog, registry skills from the Skill resources this repo declares in
+  # skills/. Nothing else in the namespace reaches this agent, and a name
+  # that resolves nowhere is reported in the workstation's status rather
+  # than silently skipped. Remove a row here and the agent forgets it.
+  skillRefs:
+{%- for sk in skillpacks %}
+    - name: ${{ sk.name }}
+{%- if not sk.installed and sk.version %}
+      version: "${{ sk.version }}"
+{%- endif %}
+{%- endfor %}
+{%- endif %}
 {%- if kbrefs | length > 0 or values.createNewKnowledgeBase %}
   # KnowledgeBases — bound (explicit per agent), chosen in the wizard's
   # "Compose" page (the AgentComposer binder field). The operator mounts
   # each at /home/node/.openclaw/wiki/<name>/ inside the gateway pod and
-  # renders a per-agent KBS.md index listing them. Skills, by contrast,
-  # are discovered from the cluster catalog at runtime (v1.6.0+) — every
-  # agent sees all skills, no per-agent binding.
+  # renders a per-agent KBS.md index listing them. Skills are bound the
+  # same way: spec.skillRefs above is this agent's own list.
   knowledgeBaseRefs:
 {%- for kb in kbrefs %}
     - name: ${{ kb.name }}
